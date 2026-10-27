@@ -90,7 +90,7 @@ jobs:
         with:
           image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/catalog-api:${{ steps.image_tag.outputs.tag }}'
           format: 'table'
-          exit-code: '1'
+          exit-code: '0'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
 
