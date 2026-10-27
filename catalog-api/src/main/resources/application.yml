@@ -1,0 +1,50 @@
+# -----------------------------------------------------------------------
+# KRConnects Catalog API - application configuration
+#
+# NOTE (interview-prep / learning scope):
+# This sample intentionally does NOT connect to a real Cosmos DB or a real
+# Azure Key Vault. In a production KRConnects deployment, the Key Vault
+# URI below would be used together with Azure Workload Identity Federation
+# to retrieve secrets such as "CatalogApi-CosmosDb-ConnectionString" at
+# runtime — never hardcoded here.
+# -----------------------------------------------------------------------
+
+server:
+  port: 8081
+
+spring:
+  application:
+    name: krconnects-catalog-api
+
+krconnects:
+  # Where to find the Data API. Override with the DATA_API_URL environment
+  # variable; defaults to the Kubernetes Service name "data-api".
+  data-api:
+    url: ${DATA_API_URL:http://data-api:8080}
+  # Base URL for product images (the Data API stores only the path).
+  # Set with the IMAGES_BASE_URL environment variable (Helm values). Empty = no images.
+  images:
+    base-url: ${IMAGES_BASE_URL:}
+  keyvault:
+    uri: https://krconnects-kv.vault.azure.net/
+  service-info:
+    service-name: krconnects-catalog-api
+
+# Actuator: exposes /actuator/health with liveness and readiness groups,
+# matching the KRConnects standard of separate /health/live and
+# /health/ready style checks (Spring Boot's native equivalent).
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
