@@ -4,7 +4,7 @@ fullnameOverride: catalog-api   # must match nginx.conf: http://catalog-api:8081
 
 image:
   repository: ckreddy3030/catalog-api
-  tag: "0a75c90"
+  tag: "f45e97c"
   pullPolicy: IfNotPresent
 
 env:
