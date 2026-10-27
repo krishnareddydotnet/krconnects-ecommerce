@@ -4,7 +4,7 @@ fullnameOverride: data-api   # must match nginx.conf: http://data-api:8080
 
 image:
   repository: ckreddy3030/data-api
-  tag: "0a75c90"
+  tag: "0ed0fb3"
   pullPolicy: IfNotPresent
 
 env:
