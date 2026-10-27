@@ -2,6 +2,7 @@ name: catalog api CI
 
 permissions:
  contents: write
+ pull-requests: write
  
 
 on:
