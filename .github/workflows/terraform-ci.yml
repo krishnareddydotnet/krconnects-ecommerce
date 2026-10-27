@@ -1,0 +1,56 @@
+name: terraform ci
+on: 
+  push:
+    branches:
+      - main
+    paths:
+     - 'infra/terraform/**'
+     - '.github/workflows/terraform-ci.yml'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ARM_USE_OIDC: true
+  ARM_USE_AZUREAD: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs: 
+  plan:  
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v6
+
+      - name: setup terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.14.6"
+
+      - name: terraform init
+        run: terraform init
+
+      - name: terraform format
+        run: terraform fmt -check
+
+      - name: terraform validate
+        run: terraform validate
+
+      - name: terraform plan
+        run: terraform plan
+
+      - name: terraform apply --auto approve
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' 
+        run: terraform apply --auto-approve
+
+        

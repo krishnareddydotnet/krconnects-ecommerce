@@ -1,0 +1,29 @@
+# data-api: .NET Web API (internal only, port 8080)
+
+fullnameOverride: data-api   # must match nginx.conf: http://data-api:8080
+
+image:
+  repository: ckreddy3030/data-api
+  tag: "0a75c90"
+  pullPolicy: IfNotPresent
+
+env:
+  - name: ConnectionStrings__DataDb
+    valueFrom:
+      secretKeyRef:
+        name: data-api-secret
+        key: ConnectionStrings__DataDb
+
+service:
+  type: ClusterIP      # internal only
+  port: 8080
+
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: http
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: http
