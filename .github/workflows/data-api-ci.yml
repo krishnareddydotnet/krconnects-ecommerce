@@ -2,6 +2,7 @@ name: data api ci
 
 permissions:
   contents: read
+  
 
 on:
   push:
@@ -55,6 +56,7 @@ jobs:
     # Only THIS job gets write; build_dotnet stays read-only (least privilege).
     permissions:
       contents: write
+      pull-requests: write
 
     defaults:
       run:
@@ -104,18 +106,13 @@ jobs:
 
       # Commit and push the updated values file (GitOps).
       # Also from the REPO ROOT - this was the cause of the error.
-      - name: Commit and push Helm values
-        shell: bash
-        working-directory: ${{ github.workspace }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add helm/ecommerce/values-data-api.yaml
-
-          # Nothing changed? Then stop here (no empty commit)
-          git diff --cached --quiet && exit 0
-
-          git commit -m "chore: update data-api image tag to ${{ steps.image_tag.outputs.tag }}"
-          git pull --rebase   # in case main moved while the pipeline was running
-          git push
+      - name: Create PR for Helm image update
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update data-api image tag to ${{ steps.image_tag.outputs.tag }}"
+          branch: automation/data-api-image-update
+          base: main
+          title: "chore: update data-api image tag"
+          body: "Automated Helm image update after successful data-api CI."
+          add-paths: helm/ecommerce/values-data-api.yaml
