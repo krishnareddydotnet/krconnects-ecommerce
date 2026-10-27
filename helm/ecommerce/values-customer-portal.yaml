@@ -1,0 +1,23 @@
+# customer-portal: React UI served by nginx (non-root, port 8080)
+
+# Fixed name, so the Deployment and Service are called "customer-portal"
+fullnameOverride: customer-portal
+
+image:
+  repository: ckreddy3030/customer-portal
+  tag: "0df9e8f"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP   # internal only; users reach it through the Istio ingress gateway
+  port: 8080           # also used as the containerPort by the chart
+
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: http
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: http
