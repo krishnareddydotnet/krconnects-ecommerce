@@ -2,6 +2,7 @@ name: catalog api CI
 
 permissions:
  contents: write
+ 
 
 on:
   push:
@@ -13,13 +14,9 @@ on:
       
   workflow_dispatch:
 
-env:
-  
-  IMAGE_TAG: v1.1.0
-
 jobs:
 
-  build_dotnet:
+  build_java:
     runs-on: ubuntu-24.04
 
     defaults:
@@ -29,6 +26,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Secret scanning
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-java@v6
         with:
@@ -48,11 +50,11 @@ jobs:
         run: mvn -B test 
 
         #Builds the runnable jar
-      - name: test
+      - name: package
         run: mvn -B package -DskipTests
 
   build_docker:
-    needs: build_dotnet
+    needs: build_java
 
    
     runs-on: ubuntu-24.04
@@ -83,6 +85,15 @@ jobs:
       - name: docker build
         run: docker build -t ${{secrets.DOCKERHUB_USERNAME}}/catalog-api:${{steps.image_tag.outputs.tag}} .
 
+      - name: Scan container image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/catalog-api:${{ steps.image_tag.outputs.tag }}'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
       - name: docker push
         run: docker push ${{secrets.DOCKERHUB_USERNAME}}/catalog-api:${{steps.image_tag.outputs.tag}}
 
@@ -99,22 +110,17 @@ jobs:
           echo "New values file:"
           cat helm/ecommerce/values-catalog-api.yaml
 
+
       # Commit and push the updated values file (GitOps).
       # Also from the REPO ROOT - this was the cause of the error.
-      - name: Commit and push Helm values
-        shell: bash
-        working-directory: ${{ github.workspace }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Create PR for Helm image update
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update catalog-api image tag to ${{ steps.image_tag.outputs.tag }}"
+          branch: automation/catalog-api-image-update
+          base: main
+          title: "chore: update catalog-api image tag"
+          body: "Automated Helm image update after successful catalog-api CI."
+          add-paths: helm/ecommerce/values-catalog-api.yaml
 
-          git add helm/ecommerce/values-catalog-api.yaml
-
-          # Nothing changed? Then stop here (no empty commit)
-          git diff --cached --quiet && exit 0
-
-          git commit -m "chore: update customer-portal image tag to ${{ steps.image_tag.outputs.tag }}"
-          git pull --rebase   # in case main moved while the pipeline was running
-          git push
-
-        
