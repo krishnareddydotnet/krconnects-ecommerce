@@ -2,6 +2,7 @@ name: auth api ci
 
 permissions: 
   contents: write
+  pull-requests: write
 
 on:
   push:
@@ -13,9 +14,6 @@ on:
 defaults:
   run:
     working-directory: ./auth-api
-
-env:
-  IMAGE_TAG: v1.0.0
 
 jobs:
   
@@ -88,20 +86,16 @@ jobs:
           echo "New values file:"
           cat helm/ecommerce/values-auth-api.yaml
 
-      # Commit and push the updated values file (GitOps).
-      # Also from the REPO ROOT - this was the cause of the error.
-      - name: Commit and push Helm values
-        shell: bash
-        working-directory: ${{ github.workspace }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      # Create a PR for the Helm image tag update (GitOps).
+      - name: Create PR for Helm image update
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update auth-api image tag to ${{ steps.image_tag.outputs.tag }}"
+          branch: automation/auth-api-image-update
+          base: main
+          title: "chore: update auth-api image tag"
+          body: "Automated Helm image update after successful auth-api CI."
+          add-paths: helm/ecommerce/values-auth-api.yaml
 
-          git add helm/ecommerce/values-auth-api.yaml
-
-          # Nothing changed? Then stop here (no empty commit)
-          git diff --cached --quiet && exit 0
-
-          git commit -m "chore: update auth-api image tag to ${{ steps.image_tag.outputs.tag }}"
-          git pull --rebase   # in case main moved while the pipeline was running
-          git push
+        
