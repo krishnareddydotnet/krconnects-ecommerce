@@ -4,6 +4,7 @@ import { fetchCategories } from './services/catalogApiService.js';
 import { signup, login, fetchMe, getSavedToken, saveToken, clearToken } from './services/authApiService.js';
 import Header from './components/Header.jsx';
 import Footer from './components/Footer.jsx';
+import PromoBanner from './components/PromoBanner.jsx';
 import LoginDialog from './components/LoginDialog.jsx';
 import SignupDialog from './components/SignupDialog.jsx';
 import Toast from './components/Toast.jsx';
@@ -235,6 +236,9 @@ function App() {
 
   return (
     <>
+      {/* Offer strip above the header, shown on every page */}
+      <PromoBanner />
+
       <Header
         searchText={searchText}
         onSearchChange={handleSearchChange}
