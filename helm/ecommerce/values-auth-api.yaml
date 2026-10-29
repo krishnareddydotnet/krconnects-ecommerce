@@ -4,7 +4,10 @@ fullnameOverride: auth-api   # must match nginx.conf: http://auth-api:8080
 
 image:
   repository: ckreddy3030/auth-api
+  # tag    = human-readable: which commit/version (set by CI)
+  # digest = sha256 of the image content, set by CI; this is what Kubernetes actually pulls
   tag: "d735ba9"
+  digest: ""
   pullPolicy: IfNotPresent
 
 env:

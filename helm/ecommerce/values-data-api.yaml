@@ -4,7 +4,10 @@ fullnameOverride: data-api   # must match nginx.conf: http://data-api:8080
 
 image:
   repository: ckreddy3030/data-api
+  # tag    = human-readable: which commit/version (set by CI)
+  # digest = sha256 of the image content, set by CI; this is what Kubernetes actually pulls
   tag: "0a75c90"
+  digest: ""
   pullPolicy: IfNotPresent
 
 env:
