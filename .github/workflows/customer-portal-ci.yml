@@ -1,6 +1,6 @@
 name: customer portal ci
 
-# Workflow-level permissions (tightened per job in the next pass)
+# Workflow-level permissions: used by the publish job (job 1 sets its own, smaller set)
 permissions:
   contents: write        # create the branch with the updated Helm values file
   pull-requests: write   # open the Helm image-tag PR
@@ -17,10 +17,15 @@ on:
 jobs:
 
   # ---------------------------------------------------------------
-  # Job 1: build, test, build the image and push it to Docker Hub
+  # Job 1: build, test, build the image, push it to Docker Hub and sign it
   # ---------------------------------------------------------------
   customer-portal-build-test:
     runs-on: ubuntu-latest
+
+    # Job-level permissions REPLACE the workflow-level ones for this job (least privilege):
+    permissions:
+      contents: read     # check out the code
+      id-token: write    # let GitHub issue an OIDC token, used by Cosign keyless signing
 
     # Expose the image tag and digest to the next job (step output -> job output)
     outputs:
@@ -75,6 +80,27 @@ jobs:
           DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${{ secrets.DOCKERHUB_USERNAME }}/customer-portal:${{ steps.image_tag.outputs.tag }} | cut -d'@' -f2)
           echo "Image digest: $DIGEST"
           echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      # ---------- Image signing with Cosign (keyless) ----------
+      # Keyless = no private key to store. Cosign uses this job's GitHub OIDC identity
+      # ("workflow customer-portal-ci.yml in this repo, on this branch") to get a short-lived
+      # certificate from Sigstore, signs the image, and records it in a public transparency log.
+      - name: install cosign
+        uses: sigstore/cosign-installer@v3
+
+      # Always sign the DIGEST (exact content), never just the tag (tags can move).
+      # The signature is stored next to the image in Docker Hub (uses the docker login above).
+      - name: sign image
+        run: cosign sign --yes ${{ secrets.DOCKERHUB_USERNAME }}/customer-portal@${{ steps.image_digest.outputs.digest }}
+
+      # Prove it works: verify the signature was made by THIS workflow in THIS repo.
+      # The same command is what a cluster policy (or a person) runs before trusting the image.
+      - name: verify image signature
+        run: |
+          cosign verify \
+            --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/customer-portal-ci.yml@${{ github.ref }}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            ${{ secrets.DOCKERHUB_USERNAME }}/customer-portal@${{ steps.image_digest.outputs.digest }}
 
   # ---------------------------------------------------------------
   # Job 2: write the new tag into the Helm values file and open a PR (GitOps)
