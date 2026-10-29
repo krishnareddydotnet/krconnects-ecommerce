@@ -1,0 +1,171 @@
+name: customer portal ci
+
+# Workflow-level permissions: used by the publish job (job 1 sets its own, smaller set)
+permissions:
+  contents: write        # create the branch with the updated Helm values file
+  pull-requests: write   # open the Helm image-tag PR
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'customer-portal/**'
+      - '.github/workflows/customer-portal-ci.yml'
+  workflow_dispatch:
+
+jobs:
+
+  # ---------------------------------------------------------------
+  # Job 1: build, test, build the image, push it to Docker Hub, sign it and attach an SBOM
+  # ---------------------------------------------------------------
+  customer-portal-build-test:
+    runs-on: ubuntu-latest
+
+    # Job-level permissions REPLACE the workflow-level ones for this job (least privilege):
+    permissions:
+      contents: read     # check out the code
+      id-token: write    # let GitHub issue an OIDC token, used by Cosign keyless signing
+
+    # Expose the image tag and digest to the next job (step output -> job output)
+    outputs:
+      image_tag: ${{ steps.image_tag.outputs.tag }}
+      image_digest: ${{ steps.image_digest.outputs.digest }}
+
+    defaults:
+      run:
+        working-directory: customer-portal
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v6
+
+      - name: setup node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: install dependency packages
+        run: npm ci
+
+      - name: test
+        run: npm test
+
+      - name: generate production files
+        run: npm run build
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Image tag = first 7 characters of the commit SHA (e.g. a1b2c3d)
+      - name: generate git sha
+        id: image_tag
+        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: build docker image
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/customer-portal:${{ steps.image_tag.outputs.tag }} .
+
+      - name: docker push
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/customer-portal:${{ steps.image_tag.outputs.tag }}
+
+      # After the push, Docker knows the image DIGEST: the sha256 hash of the image content.
+      # A tag can be moved to another image later; a digest never changes.
+      # RepoDigests looks like "user/customer-portal@sha256:4f2a..."; we keep only the part after "@".
+      - name: get image digest
+        id: image_digest
+        run: |
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${{ secrets.DOCKERHUB_USERNAME }}/customer-portal:${{ steps.image_tag.outputs.tag }} | cut -d'@' -f2)
+          echo "Image digest: $DIGEST"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      # ---------- Image signing with Cosign (keyless) ----------
+      # Keyless = no private key to store. Cosign uses this job's GitHub OIDC identity
+      # ("workflow customer-portal-ci.yml in this repo, on this branch") to get a short-lived
+      # certificate from Sigstore, signs the image, and records it in a public transparency log.
+      - name: install cosign
+        uses: sigstore/cosign-installer@v3
+
+      # Always sign the DIGEST (exact content), never just the tag (tags can move).
+      # The signature is stored next to the image in Docker Hub (uses the docker login above).
+      - name: sign image
+        run: cosign sign --yes ${{ secrets.DOCKERHUB_USERNAME }}/customer-portal@${{ steps.image_digest.outputs.digest }}
+
+      # Prove it works: verify the signature was made by THIS workflow in THIS repo.
+      # The same command is what a cluster policy (or a person) runs before trusting the image.
+      - name: verify image signature
+        run: |
+          cosign verify \
+            --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/customer-portal-ci.yml@${{ github.ref }}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            ${{ secrets.DOCKERHUB_USERNAME }}/customer-portal@${{ steps.image_digest.outputs.digest }}
+
+      # ---------- SBOM (Software Bill of Materials) ----------
+      # Lists every package and version inside the image (OS packages + app libraries).
+      # Generated FROM the pushed image digest, in the standard SPDX JSON format.
+      # The action also uploads it as a workflow artifact (download it from the run summary).
+      - name: generate SBOM (Syft)
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ secrets.DOCKERHUB_USERNAME }}/customer-portal@${{ steps.image_digest.outputs.digest }}
+          format: spdx-json
+          output-file: ${{ github.workspace }}/sbom.spdx.json
+
+      # Attach the SBOM to the image as a SIGNED attestation (same keyless identity as the signature).
+      # Stored next to the image in Docker Hub (a "sha256-<digest>.att" tag).
+      - name: attest SBOM (Cosign)
+        run: cosign attest --yes --type spdxjson --predicate "$GITHUB_WORKSPACE/sbom.spdx.json" ${{ secrets.DOCKERHUB_USERNAME }}/customer-portal@${{ steps.image_digest.outputs.digest }}
+
+      # Prove the SBOM attestation is genuine (signed by THIS workflow). Output is large, so only show the result.
+      - name: verify SBOM attestation
+        run: |
+          cosign verify-attestation --type spdxjson \
+            --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/customer-portal-ci.yml@${{ github.ref }}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            ${{ secrets.DOCKERHUB_USERNAME }}/customer-portal@${{ steps.image_digest.outputs.digest }} > /dev/null
+          echo "SBOM attestation verified for customer-portal"
+
+  # ---------------------------------------------------------------
+  # Job 2: write the new tag into the Helm values file and open a PR (GitOps)
+  # Runs on a NEW runner, so it checks out the code again.
+  # ---------------------------------------------------------------
+  customer-portal-publish:
+    needs: customer-portal-build-test
+    runs-on: ubuntu-latest
+
+    # Read the tag and digest from job 1 (needs.<job-id>.outputs.<name>)
+    env:
+      IMAGE_TAG: ${{ needs.customer-portal-build-test.outputs.image_tag }}
+      IMAGE_DIGEST: ${{ needs.customer-portal-build-test.outputs.image_digest }}
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v6
+
+      # Inside run: (bash) use $IMAGE_TAG / $IMAGE_DIGEST; they are inherited from the job-level env above
+      # The tag is for humans (which version); the digest is what Kubernetes actually pulls.
+      - name: Update Helm image tag and digest
+        shell: bash
+        run: |
+          sed -i -E "s/^([[:space:]]*tag:).*/\1 \"$IMAGE_TAG\"/" helm/ecommerce/values-customer-portal.yaml
+          sed -i -E "s/^([[:space:]]*digest:).*/\1 \"$IMAGE_DIGEST\"/" helm/ecommerce/values-customer-portal.yaml
+          echo "New values file:"
+          cat helm/ecommerce/values-customer-portal.yaml
+
+      # Outside run: (with:, env:, if:) use the expression syntax ${{ env.IMAGE_TAG }}
+      # main is protected, so the new tag goes in through a PR
+      - name: Create PR for Helm image update
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update customer-portal image tag to ${{ env.IMAGE_TAG }}"
+          branch: automation/customer-portal-image-update
+          base: main
+          title: "chore: update customer-portal image tag"
+          body: |
+            Automated Helm image update after successful customer-portal CI.
+            - Tag: `${{ env.IMAGE_TAG }}`
+            - Digest: `${{ env.IMAGE_DIGEST }}`
+          add-paths: helm/ecommerce/values-customer-portal.yaml

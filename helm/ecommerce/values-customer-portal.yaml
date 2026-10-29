@@ -1,0 +1,26 @@
+# customer-portal: React UI served by nginx (non-root, port 8080)
+
+# Fixed name, so the Deployment and Service are called "customer-portal"
+fullnameOverride: customer-portal
+
+image:
+  repository: ckreddy3030/customer-portal
+  # tag    = human-readable: which commit/version (set by CI)
+  # digest = sha256 of the image content, set by CI; this is what Kubernetes actually pulls
+  tag: "0e4c194"
+  digest: "sha256:30b9d9a3e810947b9b6324bc5e80269ef7a36d3723f726de2b0ab0c232672706"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP   # internal only; users reach it through the Istio ingress gateway
+  port: 8080           # also used as the containerPort by the chart
+
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: http
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: http

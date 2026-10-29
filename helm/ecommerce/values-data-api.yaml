@@ -1,0 +1,32 @@
+# data-api: .NET Web API (internal only, port 8080)
+
+fullnameOverride: data-api   # must match nginx.conf: http://data-api:8080
+
+image:
+  repository: ckreddy3030/data-api
+  # tag    = human-readable: which commit/version (set by CI)
+  # digest = sha256 of the image content, set by CI; this is what Kubernetes actually pulls
+  tag: "718d95d"
+  digest: "sha256:5ce5fb777a364ed4f689284905819b32de68e8372dcadef051800177309859bb"
+  pullPolicy: IfNotPresent
+
+env:
+  - name: ConnectionStrings__DataDb
+    valueFrom:
+      secretKeyRef:
+        name: data-api-secret
+        key: ConnectionStrings__DataDb
+
+service:
+  type: ClusterIP      # internal only
+  port: 8080
+
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: http
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: http

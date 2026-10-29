@@ -1,0 +1,36 @@
+# auth-api: .NET Web API (internal only, port 8080)
+
+fullnameOverride: auth-api   # must match nginx.conf: http://auth-api:8080
+
+image:
+  repository: ckreddy3030/auth-api
+  # tag    = human-readable: which commit/version (set by CI)
+  # digest = sha256 of the image content, set by CI; this is what Kubernetes actually pulls
+  tag: "718d95d"
+  digest: "sha256:0c440ffba2d907f0c4d71e5f929f94339558efa25df1d471ea025c5f40126429"
+  pullPolicy: IfNotPresent
+
+env:
+  # Secret used to sign login tokens (JWT). Created with kubectl, never stored in Git.
+  - name: Jwt__Key
+    valueFrom:
+      secretKeyRef:
+        name: auth-api-secret
+        key: Jwt__Key
+  # Where auth-api finds the Data API (Kubernetes Service name)
+  - name: DataApi__Url
+    value: "http://data-api:8080"
+
+service:
+  type: ClusterIP      # internal only
+  port: 8080
+
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: http
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: http

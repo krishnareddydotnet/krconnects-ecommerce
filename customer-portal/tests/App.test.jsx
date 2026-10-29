@@ -97,6 +97,19 @@ describe('App (storefront home page)', () => {
     expect(screen.getByRole('button', { name: 'Added ✓' })).toBeInTheDocument();
   });
 
+  it('removes a product from the cart from the home page', async () => {
+    renderApp();
+    await screen.findByText('Wireless Mouse');
+
+    // Add, then remove the same product
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add to cart' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Wireless Mouse from cart' }));
+
+    // Back to "Add to cart" and the cart is empty again
+    expect(screen.queryByRole('button', { name: 'Added ✓' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Cart, 0 items' })).toBeInTheDocument();
+  });
+
   it('shows an error message when the Catalog API call fails', async () => {
     global.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 503, json: async () => ({}) }));
     renderApp();

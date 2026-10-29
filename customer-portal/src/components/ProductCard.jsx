@@ -4,8 +4,9 @@ import ProductImage from './ProductImage.jsx';
 
 // ProductCard: one product in the grid.
 // Clicking the image or the name opens the product details page (/product/:id).
-// The button changes to "Added ✓" once the product is in the cart.
-function ProductCard({ product, isAdded, onAddToCart }) {
+// - Not in the cart: one "Add to cart" button.
+// - In the cart: "Added ✓" (soft green) plus a "Remove" button to take it out again.
+function ProductCard({ product, isAdded, onAddToCart, onRemoveFromCart }) {
   const detailsUrl = `/product/${product.id}`;
 
   return (
@@ -19,14 +20,38 @@ function ProductCard({ product, isAdded, onAddToCart }) {
         <span className="tag">{product.category}</span>
         <h3><Link to={detailsUrl} className="card-link">{product.name}</Link></h3>
         <p className="price">{formatPrice(product.price)}</p>
-        <button
-          type="button"
-          className={isAdded ? 'btn btn-primary added' : 'btn btn-primary'}
-          onClick={() => onAddToCart(product, 1)}
-          disabled={isAdded}
-        >
-          {isAdded ? 'Added ✓' : 'Add to cart'}
-        </button>
+
+        {isAdded ? (
+          // Already in the cart: show the status and a way to undo it
+          <div className="card-actions">
+            <button type="button" className="btn card-btn added" disabled>
+              Added ✓
+            </button>
+            <button
+              type="button"
+              className="btn card-remove-btn"
+              onClick={() => onRemoveFromCart(product)}
+              aria-label={`Remove ${product.name} from cart`}
+            >
+              Remove
+            </button>
+          </div>
+        ) : (
+          // Not in the cart yet: outline pill button with a cart icon
+          <button
+            type="button"
+            className="btn card-btn"
+            onClick={() => onAddToCart(product, 1)}
+          >
+            {/* Small cart icon (decorative only, so screen readers skip it) */}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6"></path>
+              <circle cx="10" cy="20" r="1.2"></circle>
+              <circle cx="17" cy="20" r="1.2"></circle>
+            </svg>
+            Add to cart
+          </button>
+        )}
       </div>
     </article>
   );
