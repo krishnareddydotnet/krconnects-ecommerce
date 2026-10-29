@@ -108,6 +108,31 @@ jobs:
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
             ${{ secrets.DOCKERHUB_USERNAME }}/auth-api@${{ steps.image_digest.outputs.digest }}
 
+      # ---------- SBOM (Software Bill of Materials) ----------
+      # Lists every package and version inside the image (OS packages + app libraries).
+      # Generated FROM the pushed image digest, in the standard SPDX JSON format.
+      # The action also uploads it as a workflow artifact (download it from the run summary).
+      - name: generate SBOM (Syft)
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ secrets.DOCKERHUB_USERNAME }}/auth-api@${{ steps.image_digest.outputs.digest }}
+          format: spdx-json
+          output-file: ${{ github.workspace }}/sbom.spdx.json
+
+      # Attach the SBOM to the image as a SIGNED attestation (same keyless identity as the signature).
+      # Stored next to the image in Docker Hub (a "sha256-<digest>.att" tag).
+      - name: attest SBOM (Cosign)
+        run: cosign attest --yes --type spdxjson --predicate "$GITHUB_WORKSPACE/sbom.spdx.json" ${{ secrets.DOCKERHUB_USERNAME }}/auth-api@${{ steps.image_digest.outputs.digest }}
+
+      # Prove the SBOM attestation is genuine (signed by THIS workflow). Output is large, so only show the result.
+      - name: verify SBOM attestation
+        run: |
+          cosign verify-attestation --type spdxjson \
+            --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/auth-api-ci.yml@${{ github.ref }}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            ${{ secrets.DOCKERHUB_USERNAME }}/auth-api@${{ steps.image_digest.outputs.digest }} > /dev/null
+          echo "SBOM attestation verified for auth-api"
+
   # ---------------------------------------------------------------
   # Job 2: write the new tag and digest into the Helm values file and open a PR (GitOps)
   # Runs on a NEW runner, so it checks out the code again.
