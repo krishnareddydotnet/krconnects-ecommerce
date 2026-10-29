@@ -6,8 +6,8 @@ image:
   repository: ckreddy3030/auth-api
   # tag    = human-readable: which commit/version (set by CI)
   # digest = sha256 of the image content, set by CI; this is what Kubernetes actually pulls
-  tag: "d735ba9"
-  digest: ""
+  tag: "718d95d"
+  digest: "sha256:0c440ffba2d907f0c4d71e5f929f94339558efa25df1d471ea025c5f40126429"
   pullPolicy: IfNotPresent
 
 env:
