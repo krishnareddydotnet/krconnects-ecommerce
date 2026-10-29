@@ -5,7 +5,10 @@ fullnameOverride: customer-portal
 
 image:
   repository: ckreddy3030/customer-portal
+  # tag    = human-readable: which commit/version (set by CI)
+  # digest = sha256 of the image content, set by CI; this is what Kubernetes actually pulls
   tag: "beb9aed"
+  digest: ""
   pullPolicy: IfNotPresent
 
 service:
