@@ -204,6 +204,7 @@ function App() {
             onPageChange={setPage}
             cartItems={cartItems}
             onAddToCart={handleAddToCart}
+            onRemoveFromCart={handleRemoveFromCart}
           />
         }
       />

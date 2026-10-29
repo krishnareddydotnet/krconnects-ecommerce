@@ -12,7 +12,7 @@ export const PAGE_SIZE = 24;   // products per page
 // HomePage ( URL: / ) — category chips, toolbar, ONE page of products, and page buttons.
 // Every change (page, category, search, sort) asks the API for the matching page.
 function HomePage({ categories, selectedCategory, onCategoryChange, searchText, sortBy, onSortChange,
-                    page, onPageChange, cartItems, onAddToCart }) {
+                    page, onPageChange, cartItems, onAddToCart, onRemoveFromCart }) {
   const [result, setResult] = useState(null);   // { items, totalCount, totalPages, ... }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -71,7 +71,7 @@ function HomePage({ categories, selectedCategory, onCategoryChange, searchText, 
         {result.items.length > 0 ? (
           // Slightly faded while the next page is loading
           <div className={loading ? 'is-loading' : ''}>
-            <ProductGrid products={result.items} cartItems={cartItems} onAddToCart={onAddToCart} />
+            <ProductGrid products={result.items} cartItems={cartItems} onAddToCart={onAddToCart} onRemoveFromCart={onRemoveFromCart} />
           </div>
         ) : (
           <EmptyState />
