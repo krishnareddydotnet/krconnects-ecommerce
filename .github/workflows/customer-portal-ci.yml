@@ -22,9 +22,10 @@ jobs:
   customer-portal-build-test:
     runs-on: ubuntu-latest
 
-    # Expose the image tag to the next job (step output -> job output)
+    # Expose the image tag and digest to the next job (step output -> job output)
     outputs:
       image_tag: ${{ steps.image_tag.outputs.tag }}
+      image_digest: ${{ steps.image_digest.outputs.digest }}
 
     defaults:
       run:
@@ -65,6 +66,16 @@ jobs:
       - name: docker push
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/customer-portal:${{ steps.image_tag.outputs.tag }}
 
+      # After the push, Docker knows the image DIGEST: the sha256 hash of the image content.
+      # A tag can be moved to another image later; a digest never changes.
+      # RepoDigests looks like "user/customer-portal@sha256:4f2a..."; we keep only the part after "@".
+      - name: get image digest
+        id: image_digest
+        run: |
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${{ secrets.DOCKERHUB_USERNAME }}/customer-portal:${{ steps.image_tag.outputs.tag }} | cut -d'@' -f2)
+          echo "Image digest: $DIGEST"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
   # ---------------------------------------------------------------
   # Job 2: write the new tag into the Helm values file and open a PR (GitOps)
   # Runs on a NEW runner, so it checks out the code again.
@@ -73,19 +84,22 @@ jobs:
     needs: customer-portal-build-test
     runs-on: ubuntu-latest
 
-    # Read the tag from job 1 (needs.<job-id>.outputs.<name>)
+    # Read the tag and digest from job 1 (needs.<job-id>.outputs.<name>)
     env:
       IMAGE_TAG: ${{ needs.customer-portal-build-test.outputs.image_tag }}
+      IMAGE_DIGEST: ${{ needs.customer-portal-build-test.outputs.image_digest }}
 
     steps:
       - name: checkout code
         uses: actions/checkout@v6
 
-      # Inside run: (bash) use $IMAGE_TAG; it is inherited from the job-level env above
-      - name: Update Helm image tag
+      # Inside run: (bash) use $IMAGE_TAG / $IMAGE_DIGEST; they are inherited from the job-level env above
+      # The tag is for humans (which version); the digest is what Kubernetes actually pulls.
+      - name: Update Helm image tag and digest
         shell: bash
         run: |
           sed -i -E "s/^([[:space:]]*tag:).*/\1 \"$IMAGE_TAG\"/" helm/ecommerce/values-customer-portal.yaml
+          sed -i -E "s/^([[:space:]]*digest:).*/\1 \"$IMAGE_DIGEST\"/" helm/ecommerce/values-customer-portal.yaml
           echo "New values file:"
           cat helm/ecommerce/values-customer-portal.yaml
 
@@ -99,5 +113,8 @@ jobs:
           branch: automation/customer-portal-image-update
           base: main
           title: "chore: update customer-portal image tag"
-          body: "Automated Helm image update after successful customer-portal CI."
+          body: |
+            Automated Helm image update after successful customer-portal CI.
+            - Tag: `${{ env.IMAGE_TAG }}`
+            - Digest: `${{ env.IMAGE_DIGEST }}`
           add-paths: helm/ecommerce/values-customer-portal.yaml

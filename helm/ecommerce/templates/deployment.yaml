@@ -38,7 +38,9 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          # repository:tag, plus "@<digest>" when a digest is set (e.g. user/app:abc1234@sha256:4f2a...)
+          # With a digest, Kubernetes pulls exactly that image content; the tag is only for humans.
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}{{ with .Values.image.digest }}@{{ . }}{{ end }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
 
 
