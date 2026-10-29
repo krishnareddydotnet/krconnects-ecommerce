@@ -1,8 +1,9 @@
 name: data api ci
 
+# Workflow-level permissions: used by the publish job (job 1 sets its own, smaller set)
 permissions:
-  contents: read
-  
+  contents: write        # create the branch with the updated Helm values file
+  pull-requests: write   # open the Helm image-tag PR
 
 on:
   push:
@@ -11,30 +12,42 @@ on:
     paths:
       - 'data-api/**'
       - '.github/workflows/data-api-ci.yml'
-
   workflow_dispatch:
 
 jobs:
 
-  build_dotnet:
+  # ---------------------------------------------------------------
+  # Job 1: secret scan, build, test, image build, Trivy, push and sign
+  # ---------------------------------------------------------------
+  data-api-build-test:
     runs-on: ubuntu-24.04
+
+    # Job-level permissions REPLACE the workflow-level ones for this job (least privilege):
+    permissions:
+      contents: read     # check out the code
+      id-token: write    # let GitHub issue an OIDC token, used by Cosign keyless signing
+
+    # Expose the image tag and digest to the next job (step output -> job output)
+    outputs:
+      image_tag: ${{ steps.image_tag.outputs.tag }}
+      image_digest: ${{ steps.image_digest.outputs.digest }}
 
     defaults:
       run:
-        working-directory: ./data-api
+        working-directory: data-api
 
     steps:
-      - name: Checkout code
+      - name: checkout code
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 0          # full history, so gitleaks can scan every new commit
 
-      - name: secrets scanning
+      - name: secret scanning (gitleaks)
         uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup .NET
+      - name: setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '10.0.x'
@@ -45,26 +58,8 @@ jobs:
       - name: build
         run: dotnet build
 
-      - name: test
+      - name: unit tests
         run: dotnet test tests/DataApi.Tests/DataApi.Tests.csproj
-
-  build_docker:
-    needs: build_dotnet
-    runs-on: ubuntu-24.04
-
-    # This job pushes a commit (new image tag) back to the repo -> needs write.
-    # Only THIS job gets write; build_dotnet stays read-only (least privilege).
-    permissions:
-      contents: write
-      pull-requests: write
-
-    defaults:
-      run:
-        working-directory: ./data-api
-
-    steps:
-      - name: checkout code
-        uses: actions/checkout@v6
 
       - name: docker login
         uses: docker/login-action@v4
@@ -80,7 +75,8 @@ jobs:
       - name: docker build
         run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/data-api:${{ steps.image_tag.outputs.tag }} .
 
-      - name: Scan container image
+      # Fails the job on fixable CRITICAL/HIGH vulnerabilities, so a vulnerable image is never pushed
+      - name: scan container image (Trivy)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/data-api:${{ steps.image_tag.outputs.tag }}'
@@ -92,27 +88,75 @@ jobs:
       - name: docker push
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/data-api:${{ steps.image_tag.outputs.tag }}
 
-      # Write the new tag into the Helm values file.
-      # Runs from the REPO ROOT (not ./data-api), so the path is simply helm/...
-      - name: Update Helm image tag
+      # After the push, Docker knows the image DIGEST: the sha256 hash of the image content.
+      # A tag can be moved to another image later; a digest never changes.
+      # RepoDigests looks like "user/data-api@sha256:4f2a..."; we keep only the part after "@".
+      - name: get image digest
+        id: image_digest
+        run: |
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${{ secrets.DOCKERHUB_USERNAME }}/data-api:${{ steps.image_tag.outputs.tag }} | cut -d'@' -f2)
+          echo "Image digest: $DIGEST"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      # ---------- Image signing with Cosign (keyless) ----------
+      # Keyless = no private key to store. Cosign uses this job's GitHub OIDC identity
+      # ("workflow data-api-ci.yml in this repo, on this branch") to get a short-lived
+      # certificate from Sigstore, signs the image, and records it in a public transparency log.
+      - name: install cosign
+        uses: sigstore/cosign-installer@v3
+
+      # Always sign the DIGEST (exact content), never just the tag (tags can move).
+      # The signature is stored next to the image in Docker Hub (uses the docker login above).
+      - name: sign image
+        run: cosign sign --yes ${{ secrets.DOCKERHUB_USERNAME }}/data-api@${{ steps.image_digest.outputs.digest }}
+
+      # Prove it works: verify the signature was made by THIS workflow in THIS repo.
+      - name: verify image signature
+        run: |
+          cosign verify \
+            --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/data-api-ci.yml@${{ github.ref }}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            ${{ secrets.DOCKERHUB_USERNAME }}/data-api@${{ steps.image_digest.outputs.digest }}
+
+  # ---------------------------------------------------------------
+  # Job 2: write the new tag and digest into the Helm values file and open a PR (GitOps)
+  # Runs on a NEW runner, so it checks out the code again.
+  # ---------------------------------------------------------------
+  data-api-publish:
+    needs: data-api-build-test
+    runs-on: ubuntu-24.04
+
+    # Read the tag and digest from job 1 (needs.<job-id>.outputs.<name>)
+    env:
+      IMAGE_TAG: ${{ needs.data-api-build-test.outputs.image_tag }}
+      IMAGE_DIGEST: ${{ needs.data-api-build-test.outputs.image_digest }}
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v6
+
+      # Inside run: (bash) use $IMAGE_TAG / $IMAGE_DIGEST; they are inherited from the job-level env above
+      # The tag is for humans (which version); the digest is what Kubernetes actually pulls.
+      - name: Update Helm image tag and digest
         shell: bash
-        working-directory: ${{ github.workspace }}
-        env:
-          IMAGE_TAG: ${{ steps.image_tag.outputs.tag }}
         run: |
           sed -i -E "s/^([[:space:]]*tag:).*/\1 \"$IMAGE_TAG\"/" helm/ecommerce/values-data-api.yaml
+          sed -i -E "s/^([[:space:]]*digest:).*/\1 \"$IMAGE_DIGEST\"/" helm/ecommerce/values-data-api.yaml
           echo "New values file:"
           cat helm/ecommerce/values-data-api.yaml
 
-      # Commit and push the updated values file (GitOps).
-      # Also from the REPO ROOT - this was the cause of the error.
+      # Outside run: (with:, env:, if:) use the expression syntax ${{ env.IMAGE_TAG }}
+      # main is protected, so the new tag goes in through a PR
       - name: Create PR for Helm image update
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore: update data-api image tag to ${{ steps.image_tag.outputs.tag }}"
+          commit-message: "chore: update data-api image tag to ${{ env.IMAGE_TAG }}"
           branch: automation/data-api-image-update
           base: main
           title: "chore: update data-api image tag"
-          body: "Automated Helm image update after successful data-api CI."
+          body: |
+            Automated Helm image update after successful data-api CI.
+            - Tag: `${{ env.IMAGE_TAG }}`
+            - Digest: `${{ env.IMAGE_DIGEST }}`
           add-paths: helm/ecommerce/values-data-api.yaml

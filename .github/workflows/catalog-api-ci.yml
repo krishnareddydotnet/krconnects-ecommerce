@@ -1,9 +1,9 @@
-name: catalog api CI
+name: catalog api ci
 
+# Workflow-level permissions: used by the publish job (job 1 sets its own, smaller set)
 permissions:
- contents: write
- pull-requests: write
- 
+  contents: write        # create the branch with the updated Helm values file
+  pull-requests: write   # open the Helm image-tag PR
 
 on:
   push:
@@ -12,81 +12,74 @@ on:
     paths:
       - 'catalog-api/**'
       - '.github/workflows/catalog-api-ci.yml'
-      
   workflow_dispatch:
 
 jobs:
 
-  build_java:
+  # ---------------------------------------------------------------
+  # Job 1: secret scan, Maven build and test, image build, Trivy, push and sign
+  # ---------------------------------------------------------------
+  catalog-api-build-test:
     runs-on: ubuntu-24.04
+
+    # Job-level permissions REPLACE the workflow-level ones for this job (least privilege):
+    permissions:
+      contents: read     # check out the code
+      id-token: write    # let GitHub issue an OIDC token, used by Cosign keyless signing
+
+    # Expose the image tag and digest to the next job (step output -> job output)
+    outputs:
+      image_tag: ${{ steps.image_tag.outputs.tag }}
+      image_digest: ${{ steps.image_digest.outputs.digest }}
 
     defaults:
       run:
-        working-directory: ./catalog-api
+        working-directory: catalog-api
 
     steps:
-      - name: Checkout code
+      - name: checkout code
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0          # full history, so gitleaks can scan every new commit
 
-      - name: Secret scanning
+      - name: secret scanning (gitleaks)
         uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/setup-java@v6
+      - name: setup Java
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '25'
           cache: maven
           cache-dependency-path: catalog-api/pom.xml   # monorepo: point to this service's pom.xml
 
-          
-      - run: java --version
-
       - name: compile
         run: mvn -B compile
 
-        #Downloads dependencies and runs 9 tests
-      - name: test 
-        run: mvn -B test 
+      - name: unit tests
+        run: mvn -B test
 
-        #Builds the runnable jar
       - name: package
         run: mvn -B package -DskipTests
-
-  build_docker:
-    needs: build_java
-
-   
-    runs-on: ubuntu-24.04
-
-    defaults:
-      run:
-        working-directory: ./catalog-api
-
-    steps:
-      - name: checkout code
-        uses: actions/checkout@v6.0.0
 
       - name: docker login
         uses: docker/login-action@v4
         with:
-          username: ${{secrets.DOCKERHUB_USERNAME}}
-          password: ${{secrets.DOCKERHUB_TOKEN}}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # Image tag = first 7 characters of the commit SHA (e.g. a1b2c3d)
       - name: generate git sha
         id: image_tag
         run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
-
-      - name: docker setup
-        uses: docker/setup-docker-action@v5
-
       - name: docker build
-        run: docker build -t ${{secrets.DOCKERHUB_USERNAME}}/catalog-api:${{steps.image_tag.outputs.tag}} .
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/catalog-api:${{ steps.image_tag.outputs.tag }} .
 
-      - name: Scan container image
+      # Report-only for now (exit-code 0): shows CRITICAL/HIGH findings without failing the job
+      - name: scan container image (Trivy)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: '${{ secrets.DOCKERHUB_USERNAME }}/catalog-api:${{ steps.image_tag.outputs.tag }}'
@@ -96,32 +89,77 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: docker push
-        run: docker push ${{secrets.DOCKERHUB_USERNAME}}/catalog-api:${{steps.image_tag.outputs.tag}}
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/catalog-api:${{ steps.image_tag.outputs.tag }}
 
+      # After the push, Docker knows the image DIGEST: the sha256 hash of the image content.
+      # A tag can be moved to another image later; a digest never changes.
+      # RepoDigests looks like "user/catalog-api@sha256:4f2a..."; we keep only the part after "@".
+      - name: get image digest
+        id: image_digest
+        run: |
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${{ secrets.DOCKERHUB_USERNAME }}/catalog-api:${{ steps.image_tag.outputs.tag }} | cut -d'@' -f2)
+          echo "Image digest: $DIGEST"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
 
-      # Write the new tag into the Helm values file.
-      # Runs from the REPO ROOT (not ./data-api), so the path is simply helm/...
-      - name: Update Helm image tag
+      # ---------- Image signing with Cosign (keyless) ----------
+      # Keyless = no private key to store. Cosign uses this job's GitHub OIDC identity
+      # ("workflow catalog-api-ci.yml in this repo, on this branch") to get a short-lived
+      # certificate from Sigstore, signs the image, and records it in a public transparency log.
+      - name: install cosign
+        uses: sigstore/cosign-installer@v3
+
+      # Always sign the DIGEST (exact content), never just the tag (tags can move).
+      # The signature is stored next to the image in Docker Hub (uses the docker login above).
+      - name: sign image
+        run: cosign sign --yes ${{ secrets.DOCKERHUB_USERNAME }}/catalog-api@${{ steps.image_digest.outputs.digest }}
+
+      # Prove it works: verify the signature was made by THIS workflow in THIS repo.
+      - name: verify image signature
+        run: |
+          cosign verify \
+            --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/catalog-api-ci.yml@${{ github.ref }}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            ${{ secrets.DOCKERHUB_USERNAME }}/catalog-api@${{ steps.image_digest.outputs.digest }}
+
+  # ---------------------------------------------------------------
+  # Job 2: write the new tag and digest into the Helm values file and open a PR (GitOps)
+  # Runs on a NEW runner, so it checks out the code again.
+  # ---------------------------------------------------------------
+  catalog-api-publish:
+    needs: catalog-api-build-test
+    runs-on: ubuntu-24.04
+
+    # Read the tag and digest from job 1 (needs.<job-id>.outputs.<name>)
+    env:
+      IMAGE_TAG: ${{ needs.catalog-api-build-test.outputs.image_tag }}
+      IMAGE_DIGEST: ${{ needs.catalog-api-build-test.outputs.image_digest }}
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v6
+
+      # Inside run: (bash) use $IMAGE_TAG / $IMAGE_DIGEST; they are inherited from the job-level env above
+      # The tag is for humans (which version); the digest is what Kubernetes actually pulls.
+      - name: Update Helm image tag and digest
         shell: bash
-        working-directory: ${{ github.workspace }}
-        env:
-          IMAGE_TAG: ${{ steps.image_tag.outputs.tag }}
         run: |
           sed -i -E "s/^([[:space:]]*tag:).*/\1 \"$IMAGE_TAG\"/" helm/ecommerce/values-catalog-api.yaml
+          sed -i -E "s/^([[:space:]]*digest:).*/\1 \"$IMAGE_DIGEST\"/" helm/ecommerce/values-catalog-api.yaml
           echo "New values file:"
           cat helm/ecommerce/values-catalog-api.yaml
 
-
-      # Commit and push the updated values file (GitOps).
-      # Also from the REPO ROOT - this was the cause of the error.
+      # Outside run: (with:, env:, if:) use the expression syntax ${{ env.IMAGE_TAG }}
+      # main is protected, so the new tag goes in through a PR
       - name: Create PR for Helm image update
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore: update catalog-api image tag to ${{ steps.image_tag.outputs.tag }}"
+          commit-message: "chore: update catalog-api image tag to ${{ env.IMAGE_TAG }}"
           branch: automation/catalog-api-image-update
           base: main
           title: "chore: update catalog-api image tag"
-          body: "Automated Helm image update after successful catalog-api CI."
+          body: |
+            Automated Helm image update after successful catalog-api CI.
+            - Tag: `${{ env.IMAGE_TAG }}`
+            - Digest: `${{ env.IMAGE_DIGEST }}`
           add-paths: helm/ecommerce/values-catalog-api.yaml
-

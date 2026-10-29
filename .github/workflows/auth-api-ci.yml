@@ -1,101 +1,152 @@
 name: auth api ci
 
-permissions: 
-  contents: write
-  pull-requests: write
+# Workflow-level permissions: used by the publish job (job 1 sets its own, smaller set)
+permissions:
+  contents: write        # create the branch with the updated Helm values file
+  pull-requests: write   # open the Helm image-tag PR
 
 on:
   push:
-   branches:
-     - main
-   paths:
+    branches:
+      - main
+    paths:
       - 'auth-api/**'
       - '.github/workflows/auth-api-ci.yml'
-defaults:
-  run:
-    working-directory: ./auth-api
+  workflow_dispatch:
 
 jobs:
-  
-  build:
-  
+
+  # ---------------------------------------------------------------
+  # Job 1: secret scan, build, test, image build, push and sign
+  # ---------------------------------------------------------------
+  auth-api-build-test:
     runs-on: ubuntu-latest
+
+    # Job-level permissions REPLACE the workflow-level ones for this job (least privilege):
+    permissions:
+      contents: read     # check out the code
+      id-token: write    # let GitHub issue an OIDC token, used by Cosign keyless signing
+
+    # Expose the image tag and digest to the next job (step output -> job output)
+    outputs:
+      image_tag: ${{ steps.image_tag.outputs.tag }}
+      image_digest: ${{ steps.image_digest.outputs.digest }}
+
+    defaults:
+      run:
+        working-directory: auth-api
+
     steps:
       - name: checkout code
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 0          # full history, so gitleaks can scan every new commit
 
-      - name: secret scanning gitleaks
+      - name: secret scanning (gitleaks)
         uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
-      - name: setup dotnet core
+
+      - name: setup .NET
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
-      - name: Downloads the NuGet packages
+      - name: restore NuGet packages
         run: dotnet restore AuthApi.csproj
 
-      - name: Compiles the API
+      - name: build
         run: dotnet build AuthApi.csproj --no-restore -c Release
 
-      - name: test
+      - name: unit tests
         run: dotnet test tests/AuthApi.Tests/AuthApi.Tests.csproj
 
       - name: docker login
         uses: docker/login-action@v4
         with:
-          username: ${{secrets.DOCKERHUB_USERNAME}}
-          password: ${{secrets.DOCKERHUB_TOKEN}}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # Image tag = first 7 characters of the commit SHA (e.g. a1b2c3d)
       - name: generate git sha
         id: image_tag
         run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
-      - name: docker setup
-        uses: docker/setup-docker-action@v5
-
-
-
       - name: docker build
-        run: docker build -t ${{secrets.DOCKERHUB_USERNAME}}/auth-api:${{steps.image_tag.outputs.tag}} .
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/auth-api:${{ steps.image_tag.outputs.tag }} .
 
       - name: docker push
-        run: docker push ${{secrets.DOCKERHUB_USERNAME}}/auth-api:${{steps.image_tag.outputs.tag}}
-        
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/auth-api:${{ steps.image_tag.outputs.tag }}
 
-        
+      # After the push, Docker knows the image DIGEST: the sha256 hash of the image content.
+      # A tag can be moved to another image later; a digest never changes.
+      # RepoDigests looks like "user/auth-api@sha256:4f2a..."; we keep only the part after "@".
+      - name: get image digest
+        id: image_digest
+        run: |
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${{ secrets.DOCKERHUB_USERNAME }}/auth-api:${{ steps.image_tag.outputs.tag }} | cut -d'@' -f2)
+          echo "Image digest: $DIGEST"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
 
-        
+      # ---------- Image signing with Cosign (keyless) ----------
+      # Keyless = no private key to store. Cosign uses this job's GitHub OIDC identity
+      # ("workflow auth-api-ci.yml in this repo, on this branch") to get a short-lived
+      # certificate from Sigstore, signs the image, and records it in a public transparency log.
+      - name: install cosign
+        uses: sigstore/cosign-installer@v3
 
-      
-  
-      # Write the new tag into the Helm values file.
-      # Runs from the REPO ROOT (not ./data-api), so the path is simply helm/...
-      - name: Update Helm image tag
+      # Always sign the DIGEST (exact content), never just the tag (tags can move).
+      # The signature is stored next to the image in Docker Hub (uses the docker login above).
+      - name: sign image
+        run: cosign sign --yes ${{ secrets.DOCKERHUB_USERNAME }}/auth-api@${{ steps.image_digest.outputs.digest }}
+
+      # Prove it works: verify the signature was made by THIS workflow in THIS repo.
+      - name: verify image signature
+        run: |
+          cosign verify \
+            --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/auth-api-ci.yml@${{ github.ref }}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            ${{ secrets.DOCKERHUB_USERNAME }}/auth-api@${{ steps.image_digest.outputs.digest }}
+
+  # ---------------------------------------------------------------
+  # Job 2: write the new tag and digest into the Helm values file and open a PR (GitOps)
+  # Runs on a NEW runner, so it checks out the code again.
+  # ---------------------------------------------------------------
+  auth-api-publish:
+    needs: auth-api-build-test
+    runs-on: ubuntu-latest
+
+    # Read the tag and digest from job 1 (needs.<job-id>.outputs.<name>)
+    env:
+      IMAGE_TAG: ${{ needs.auth-api-build-test.outputs.image_tag }}
+      IMAGE_DIGEST: ${{ needs.auth-api-build-test.outputs.image_digest }}
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v6
+
+      # Inside run: (bash) use $IMAGE_TAG / $IMAGE_DIGEST; they are inherited from the job-level env above
+      # The tag is for humans (which version); the digest is what Kubernetes actually pulls.
+      - name: Update Helm image tag and digest
         shell: bash
-        working-directory: ${{ github.workspace }}
-        env:
-          IMAGE_TAG: ${{ steps.image_tag.outputs.tag }}
         run: |
           sed -i -E "s/^([[:space:]]*tag:).*/\1 \"$IMAGE_TAG\"/" helm/ecommerce/values-auth-api.yaml
+          sed -i -E "s/^([[:space:]]*digest:).*/\1 \"$IMAGE_DIGEST\"/" helm/ecommerce/values-auth-api.yaml
           echo "New values file:"
           cat helm/ecommerce/values-auth-api.yaml
 
-      # Create a PR for the Helm image tag update (GitOps).
+      # Outside run: (with:, env:, if:) use the expression syntax ${{ env.IMAGE_TAG }}
+      # main is protected, so the new tag goes in through a PR
       - name: Create PR for Helm image update
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore: update auth-api image tag to ${{ steps.image_tag.outputs.tag }}"
+          commit-message: "chore: update auth-api image tag to ${{ env.IMAGE_TAG }}"
           branch: automation/auth-api-image-update
           base: main
           title: "chore: update auth-api image tag"
-          body: "Automated Helm image update after successful auth-api CI."
+          body: |
+            Automated Helm image update after successful auth-api CI.
+            - Tag: `${{ env.IMAGE_TAG }}`
+            - Digest: `${{ env.IMAGE_DIGEST }}`
           add-paths: helm/ecommerce/values-auth-api.yaml
-
-        
