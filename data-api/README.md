@@ -1,7 +1,7 @@
 # krconnects-data-api
 
 Data API for the KRConnects e-commerce lab, built with **.NET 10 (C#)** and **Entity Framework Core**.
-It is the **only** service that talks to SQL Server. Other services (auth-api, later orders) call this API.
+It is the **only** service that talks to SQL Server. Other services (auth-api, catalog-api, order-api) call this API.
 
 ## Endpoints
 
@@ -21,6 +21,9 @@ It is the **only** service that talks to SQL Server. Other services (auth-api, l
 | POST | `/products` | Create product |
 | PUT | `/products/{id}` | Update product |
 | DELETE | `/products/{id}` | Delete product |
+| POST | `/orders` | Create order + items in one transaction (called by order-api) - `201`, or `409` if the order number exists |
+| GET | `/orders/user/{userId}` | Orders of one user, newest first, with items |
+| GET | `/orders/{id}` | One order with items |
 
 ## Configuration
 
@@ -36,7 +39,8 @@ Server=sqlserver,1433;Database=KRConnectsEcommerce;User Id=sa;Password=<password
 On startup the app:
 1. Creates the `KRConnectsEcommerce` database (with `Users` and `Products` tables) if it doesn't exist.
 2. Creates the `Products` table if it is missing (for databases created before products were added).
-3. Loads 100 demo products if the `Products` table is empty.
+3. Creates the `Orders` and `OrderItems` tables if they are missing (same reason as 2).
+4. Adds any missing demo products.
 
 ## Port
 

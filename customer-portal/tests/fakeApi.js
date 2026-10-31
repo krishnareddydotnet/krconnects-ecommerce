@@ -1,6 +1,6 @@
 // -----------------------------------------------------------------------
 // A fake backend for tests: answers fetch() calls like nginx + catalog-api
-// + auth-api would, using a small product list. Paging, search, category
+// + auth-api + order-api would, using a small product list. Paging, search, category
 // and sort work like the real Data API.
 // -----------------------------------------------------------------------
 
@@ -72,6 +72,29 @@ export function fakeFetch(url, options = {}) {
     return options.headers?.Authorization === 'Bearer test-token'
       ? reply(200, { id: 1, username: 'krishna' })
       : reply(401, {});
+  }
+
+  // ----- order-api -----
+  // Like the real Order API: prices come from the product list (NOT from the
+  // request), and the order number is made on the "server".
+  if (u.pathname === '/order-api/orders' && options.method === 'POST') {
+    if (options.headers?.Authorization !== 'Bearer test-token') {
+      return reply(401, { message: 'Please log in to continue.' });
+    }
+
+    const items = [];
+    for (const { productId, quantity } of body.items) {
+      const product = sampleProducts.find((p) => p.id === productId);
+      if (!product) return reply(400, { message: `Product ${productId} does not exist.` });
+      items.push({ productId, productName: product.name, unitPrice: product.price, quantity, lineTotal: product.price * quantity });
+    }
+
+    const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
+    const delivery = subtotal > 999 ? 0 : 49;
+    return reply(201, {
+      id: 1, orderNumber: 'KRC-20261031-TEST01', userId: 1, username: 'krishna', status: 'Placed',
+      subtotal, delivery, total: subtotal + delivery, createdAt: '2026-10-31T10:00:00Z', items
+    });
   }
 
   return reply(404, {});

@@ -3,6 +3,7 @@
 // The ONLY service that talks to the database. Other services (auth-api,
 // catalog-api, later orders) call this API instead of connecting to
 // SQL Server directly.
+// Tables: Users, Products, Orders, OrderItems.
 //
 // Connection string comes from configuration key "ConnectionStrings:DataDb".
 // In Kubernetes it is injected as the environment variable
@@ -29,6 +30,7 @@ builder.Services.AddControllers();
 builder.Services.AddDbContext<DataDbContext>(options => options.UseSqlServer(connectionString));
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<ProductService>();
+builder.Services.AddScoped<OrderService>();
 
 var app = builder.Build();
 
@@ -82,7 +84,46 @@ using (var scope = app.Services.CreateScope())
             ALTER TABLE dbo.Products ADD ImageUrl NVARCHAR(200) NULL;
         END");
 
-    // 3d. Insert any demo product that is not in the table yet (matched by Name).
+    // 3d. Add the Orders and OrderItems tables if they are missing (same reason
+    //     as 3b: the database already exists, so EnsureCreated() won't add them).
+    //     Column types and the unique index match the EF Core mapping in DataDbContext.
+    db.Database.ExecuteSqlRaw(@"
+        IF OBJECT_ID(N'dbo.Orders', N'U') IS NULL
+        BEGIN
+            CREATE TABLE dbo.Orders (
+                Id          INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                OrderNumber NVARCHAR(30)      NOT NULL,
+                UserId      INT               NOT NULL,
+                Username    NVARCHAR(50)      NOT NULL,
+                Status      NVARCHAR(20)      NOT NULL,
+                Subtotal    DECIMAL(10,2)     NOT NULL,
+                Delivery    DECIMAL(10,2)     NOT NULL,
+                Total       DECIMAL(10,2)     NOT NULL,
+                CreatedAt   DATETIME2         NOT NULL
+            );
+            CREATE UNIQUE INDEX IX_Orders_OrderNumber ON dbo.Orders (OrderNumber);
+            CREATE INDEX IX_Orders_UserId ON dbo.Orders (UserId);
+        END");
+
+    // OrderItems must be created AFTER Orders, because of the foreign key
+    db.Database.ExecuteSqlRaw(@"
+        IF OBJECT_ID(N'dbo.OrderItems', N'U') IS NULL
+        BEGIN
+            CREATE TABLE dbo.OrderItems (
+                Id          INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                OrderId     INT               NOT NULL,
+                ProductId   INT               NOT NULL,
+                ProductName NVARCHAR(100)     NOT NULL,
+                UnitPrice   DECIMAL(10,2)     NOT NULL,
+                Quantity    INT               NOT NULL,
+                LineTotal   DECIMAL(10,2)     NOT NULL,
+                CONSTRAINT FK_OrderItems_Orders_OrderId
+                    FOREIGN KEY (OrderId) REFERENCES dbo.Orders (Id) ON DELETE CASCADE
+            );
+            CREATE INDEX IX_OrderItems_OrderId ON dbo.OrderItems (OrderId);
+        END");
+
+    // 3e. Insert any demo product that is not in the table yet (matched by Name).
     //     Safe to run on every start: existing rows are never changed or deleted.
     var seedProducts = ProductSeedData.GetProducts();
     var existingNames = db.Products.Select(p => p.Name).ToHashSet();
@@ -95,7 +136,7 @@ using (var scope = app.Services.CreateScope())
         app.Logger.LogInformation("Added {Count} demo products.", missingProducts.Count);
     }
 
-    // 3e. Give older products (created before images existed) their image path
+    // 3f. Give older products (created before images existed) their image path
     var imagePathByName = seedProducts.ToDictionary(p => p.Name, p => p.ImageUrl);
     var productsWithoutImage = db.Products.Where(p => p.ImageUrl == null).ToList();
     int updated = 0;

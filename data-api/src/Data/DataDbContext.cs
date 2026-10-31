@@ -15,6 +15,8 @@ public class DataDbContext : DbContext
 
     public DbSet<User> Users => Set<User>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<Order> Orders => Set<Order>();
+    public DbSet<OrderItem> OrderItems => Set<OrderItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -48,5 +50,47 @@ public class DataDbContext : DbContext
         modelBuilder.Entity<Product>()
             .Property(p => p.Price)
             .HasPrecision(10, 2);
+
+        // ----- Orders -----
+        // OrderNumber: required and UNIQUE (two orders never share a number)
+        modelBuilder.Entity<Order>()
+            .Property(o => o.OrderNumber)
+            .HasMaxLength(30)
+            .IsRequired();
+
+        modelBuilder.Entity<Order>()
+            .HasIndex(o => o.OrderNumber)
+            .IsUnique();
+
+        modelBuilder.Entity<Order>()
+            .Property(o => o.Username)
+            .HasMaxLength(50)
+            .IsRequired();
+
+        modelBuilder.Entity<Order>()
+            .Property(o => o.Status)
+            .HasMaxLength(20)
+            .IsRequired();
+
+        // Money: DECIMAL(10,2), same as Products.Price
+        modelBuilder.Entity<Order>().Property(o => o.Subtotal).HasPrecision(10, 2);
+        modelBuilder.Entity<Order>().Property(o => o.Delivery).HasPrecision(10, 2);
+        modelBuilder.Entity<Order>().Property(o => o.Total).HasPrecision(10, 2);
+
+        // One order has many items. Deleting an order deletes its items too.
+        modelBuilder.Entity<Order>()
+            .HasMany(o => o.Items)
+            .WithOne()
+            .HasForeignKey(i => i.OrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // ----- OrderItems -----
+        modelBuilder.Entity<OrderItem>()
+            .Property(i => i.ProductName)
+            .HasMaxLength(100)
+            .IsRequired();
+
+        modelBuilder.Entity<OrderItem>().Property(i => i.UnitPrice).HasPrecision(10, 2);
+        modelBuilder.Entity<OrderItem>().Property(i => i.LineTotal).HasPrecision(10, 2);
     }
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { fetchCategories } from './services/catalogApiService.js';
 import { signup, login, fetchMe, getSavedToken, saveToken, clearToken } from './services/authApiService.js';
+import { placeOrder } from './services/orderApiService.js';
 import Header from './components/Header.jsx';
 import Footer from './components/Footer.jsx';
 import PromoBanner from './components/PromoBanner.jsx';
@@ -46,7 +47,7 @@ function App() {
   // Starts from the cart saved in the browser, so a refresh keeps it.
   const [cartItems, setCartItems] = useState(() => loadCart());
 
-  // ----- Last placed order (shown on the confirmation page) -----
+  // ----- Last placed order, as SAVED by the Order API (shown on the confirmation page) -----
   const [lastOrder, setLastOrder] = useState(null);
 
   // ----- Logged-in user: { id, username } or null -----
@@ -136,13 +137,36 @@ function App() {
     showToast(product.name + ' removed from cart');
   }
 
-  // DEMO: no order-api yet, so we only make an order number, empty the cart
-  // and show the confirmation page. Later: POST /order-api/orders.
-  function handlePlaceOrder(lines, summary) {
-    const orderNumber = 'KR' + Date.now().toString().slice(-8);
-    setLastOrder({ orderNumber, username: currentUser.username, lines, summary });
-    setCartItems({});
-    navigate('/order-confirmation');
+  // Place order: send the cart to the Order API (POST /order-api/orders).
+  // The Order API checks the prices, calculates the totals and saves the order,
+  // so the confirmation page shows the SAVED order, not the browser's numbers.
+  async function handlePlaceOrder(lines) {
+    const token = getSavedToken();
+    if (!token) {
+      setOpenDialog('login');
+      return;
+    }
+
+    try {
+      const savedOrder = await placeOrder(token, lines);
+      setLastOrder(savedOrder);
+      setCartItems({});              // order is saved, so the cart can be emptied
+      navigate('/order-confirmation');
+    } catch (err) {
+      if (err.status === 401) {
+        // Login expired: forget the token and ask the user to log in again.
+        // The cart is kept, so nothing is lost.
+        clearToken();
+        setCurrentUser(null);
+        showToast('Your session has expired. Please log in again.');
+        setOpenDialog('login');
+      } else if (err.status === 400) {
+        // e.g. a product no longer exists: the API's message says which one
+        showToast('We could not place your order: ' + err.message);
+      } else {
+        showToast('Sorry, we could not place your order. Please try again.');
+      }
+    }
   }
 
   // Sign up: the user is saved in the database (only if the username is new).

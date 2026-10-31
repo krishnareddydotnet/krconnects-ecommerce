@@ -1,0 +1,56 @@
+# order-api: Node.js (Express) API (internal only, port 8082)
+
+fullnameOverride: order-api   # must match nginx.conf: http://order-api:8082
+
+image:
+  repository: ckreddy3030/order-api
+  # tag    = human-readable: which commit/version (set by CI)
+  # digest = sha256 of the image content, set by CI; this is what Kubernetes actually pulls
+  tag: ""
+  digest: ""
+  pullPolicy: IfNotPresent
+
+env:
+  # Secret used to CHECK login tokens (JWT). Same Secret and key as auth-api,
+  # because the token must be checked with the key it was signed with.
+  - name: Jwt__Key
+    valueFrom:
+      secretKeyRef:
+        name: auth-api-secret
+        key: Jwt__Key
+  # Where order-api finds the Data API (Kubernetes Service name)
+  - name: DATA_API_URL
+    value: "http://data-api:8080"
+  # Azure Service Bus namespace for the OrderPlaced event (not a secret: login uses
+  # Workload Identity, no connection string). Replace with your namespace.
+  - name: SERVICEBUS_NAMESPACE
+    value: "<your-namespace>.servicebus.windows.net"
+  - name: SERVICEBUS_TOPIC
+    value: "orders"
+
+# Workload Identity: the pod logs in to Azure as a managed identity (no keys).
+# The Kubernetes ServiceAccount is named "order-api" (from fullnameOverride);
+# the managed identity has a federated credential for that ServiceAccount.
+serviceAccount:
+  annotations:
+    # Client ID of the order-api managed identity (see docs/service-bus-setup.md).
+    # Not a secret, but specific to your Azure subscription, so it is left empty here.
+    azure.workload.identity/client-id: ""
+
+podLabels:
+  # Tells the AKS Workload Identity webhook to inject the Azure token into this pod
+  azure.workload.identity/use: "true"
+
+service:
+  type: ClusterIP      # internal only
+  port: 8082
+
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: http
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: http

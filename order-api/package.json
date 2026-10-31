@@ -1,0 +1,23 @@
+{
+  "name": "krconnects-order-api",
+  "version": "1.0.0",
+  "description": "KRConnects Order API: places orders (prices checked on the server) and lists a user's orders. Built with Node.js + Express.",
+  "private": true,
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@azure/identity": "^4.14.1",
+    "@azure/service-bus": "^7.10.0",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "supertest": "^7.1.0"
+  }
+}
