@@ -73,6 +73,27 @@ async function getOrderById(orderId) {
   return result.body;
 }
 
+// ----- Admin -----
+
+// GET /orders?page=&pageSize= -> { items, page, pageSize, totalCount, totalPages }
+async function getOrdersPage(page, pageSize) {
+  const result = await callDataApi('GET', `/orders?page=${page}&pageSize=${pageSize}`);
+  if (result.status !== 200) {
+    throw new Error(`Data API GET /orders returned ${result.status}`);
+  }
+  return result.body;
+}
+
+// PATCH /orders/{id}/status -> the updated order, or null if it doesn't exist
+async function updateOrderStatus(orderId, status) {
+  const result = await callDataApi('PATCH', `/orders/${orderId}/status`, { status: status });
+  if (result.status === 404) return null;
+  if (result.status !== 200) {
+    throw new Error(`Data API PATCH /orders/${orderId}/status returned ${result.status}`);
+  }
+  return result.body;
+}
+
 // Used by the readiness probe: is the Data API answering at all?
 async function isReachable() {
   try {
@@ -89,5 +110,7 @@ module.exports = {
   createOrder,
   getOrdersByUser,
   getOrderById,
+  getOrdersPage,
+  updateOrderStatus,
   isReachable
 };

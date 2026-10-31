@@ -22,11 +22,12 @@ function makeToken(overrides = {}) {
     audience: 'krconnects-customer-portal',
     expiresIn: '60m',
     algorithm: 'HS256',
+    role: 'customer',
     ...overrides
   };
 
   return jwt.sign(
-    { sub: String(settings.userId), name: settings.username },
+    { sub: String(settings.userId), name: settings.username, role: settings.role },
     settings.key,
     {
       issuer: settings.issuer,
