@@ -1,0 +1,13 @@
+# Keep the Docker build context small and free of local files/secrets
+node_modules
+dist
+.angular
+coverage
+.git
+.gitignore
+.vscode
+.env
+.env.*
+Dockerfile
+.dockerignore
+README.md

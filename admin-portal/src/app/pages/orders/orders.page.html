@@ -1,0 +1,71 @@
+<div class="toolbar">
+  <h1>Orders</h1>
+  <button type="button" class="btn" (click)="load()" [disabled]="loading()">Refresh</button>
+</div>
+
+@if (notice()) {
+  <p class="message success" role="status">{{ notice() }}</p>
+}
+@if (error()) {
+  <p class="message error" role="alert">{{ error() }}</p>
+}
+
+@if (loading() && !data()) {
+  <p class="muted">Loading orders…</p>
+}
+
+@if (data(); as result) {
+  <p class="muted">{{ result.totalCount }} orders</p>
+
+  @if (result.items.length === 0) {
+    <p class="empty">No orders yet.</p>
+  } @else {
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Order number</th>
+          <th scope="col">Customer</th>
+          <th scope="col">Date</th>
+          <th scope="col" class="number">Items</th>
+          <th scope="col" class="number">Total</th>
+          <th scope="col">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (order of result.items; track order.id) {
+          <tr>
+            <td>{{ order.orderNumber }}</td>
+            <td>{{ order.username }}</td>
+            <td>{{ formatDate(order.createdAt) }}</td>
+            <td class="number">{{ itemCount(order) }}</td>
+            <td class="number">{{ formatPrice(order.total) }}</td>
+            <td>
+              <label class="visually-hidden" [for]="'status-' + order.id">Status of {{ order.orderNumber }}</label>
+              <select
+                #select
+                [id]="'status-' + order.id"
+                [disabled]="savingId() === order.id"
+                (change)="changeStatus(order, select)"
+              >
+                @for (status of statuses; track status) {
+                  <option [value]="status" [selected]="status === order.status">{{ status }}</option>
+                }
+              </select>
+              @if (savingId() === order.id) {
+                <span class="muted"> Saving…</span>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+
+  <nav class="pager" aria-label="Pages">
+    <button type="button" class="btn" [disabled]="page() <= 1 || loading()" (click)="goToPage(page() - 1)">Previous</button>
+    <span>Page {{ result.page }} of {{ result.totalPages || 1 }}</span>
+    <button type="button" class="btn" [disabled]="page() >= result.totalPages || loading()" (click)="goToPage(page() + 1)">
+      Next
+    </button>
+  </nav>
+}
