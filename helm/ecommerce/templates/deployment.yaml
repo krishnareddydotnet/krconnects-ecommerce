@@ -38,9 +38,12 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          # repository:tag, plus "@<digest>" when a digest is set (e.g. user/app:abc1234@sha256:4f2a...)
+          # Image = "<registry>/<repository>:<tag>", plus "@<digest>" when a digest is set:
+          #   docker.io/ckreddy3030/data-api:abc1234@sha256:4f2a...     (Docker Hub)
+          #   krconnectspractice.azurecr.io/data-api:abc1234@sha256:...  (ACR)
+          #   data-api:local                                            (registry "" = image built on your laptop)
           # With a digest, Kubernetes pulls exactly that image content; the tag is only for humans.
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}{{ with .Values.image.digest }}@{{ . }}{{ end }}"
+          image: "{{ with .Values.image.registry }}{{ . }}/{{ end }}{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}{{ with .Values.image.digest }}@{{ . }}{{ end }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
 
 

@@ -1,0 +1,13 @@
+# Use images built on your laptop, no registry at all (Docker Desktop only).
+# Build first, from the service folder:   docker build -t data-api:local .
+# Then deploy with this file as the LAST -f:
+#   helm upgrade --install data-api helm/ecommerce -f helm/ecommerce/values-data-api.yaml -f helm/ecommerce/registries/local.yaml
+#
+# NOTE: this only works if your local Kubernetes can see Docker Desktop's images
+# (Docker Desktop's built-in Kubernetes with the default kubeadm setup usually can).
+# If pods show ErrImageNeverPull, your cluster can't see them: use registries/dockerhub.yaml instead.
+image:
+  registry: ""          # empty = image is just "<repository>:<tag>", e.g. data-api:local
+  tag: "local"
+  digest: ""            # a local build has no registry digest
+  pullPolicy: Never     # never download; use the image already on this machine

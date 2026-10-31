@@ -4,7 +4,11 @@
 fullnameOverride: admin-portal
 
 image:
-  repository: krconnectspractice.azurecr.io/admin-portal
+  # Registry the CI pushed the current image to (CI updates this line, like tag and digest).
+  # Override it with an extra -f registries/<name>.yaml (the last -f wins).
+  registry: "docker.io/ckreddy3030"
+  # image NAME only (no registry part)
+  repository: admin-portal
   # tag    = human-readable: which commit/version (set by CI)
   # digest = sha256 of the image content, set by CI; this is what Kubernetes actually pulls
   tag: ""

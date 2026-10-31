@@ -1,0 +1,8 @@
+# Pull images from Azure Container Registry (AKS practice only).
+# Use as the LAST -f so it wins over the registry in values-<service>.yaml:
+#   helm upgrade --install data-api helm/ecommerce -f helm/ecommerce/values-data-api.yaml -f helm/ecommerce/registries/acr.yaml
+# The image must exist there: set the GitHub variable IMAGE_REGISTRY to "acr" and run the service's workflow.
+# AKS needs pull rights on the registry (AcrPull for the cluster's kubelet identity, e.g. "az aks update --attach-acr").
+# Docker Desktop cannot pull from this private registry without an imagePullSecret, so use dockerhub.yaml there.
+image:
+  registry: "krconnectspractice.azurecr.io"

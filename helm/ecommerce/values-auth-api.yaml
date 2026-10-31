@@ -3,7 +3,11 @@
 fullnameOverride: auth-api   # must match nginx.conf: http://auth-api:8080
 
 image:
-  repository: krconnectspractice.azurecr.io/auth-api
+  # Registry the CI pushed the current image to (CI updates this line, like tag and digest).
+  # Override it with an extra -f registries/<name>.yaml (the last -f wins).
+  registry: "docker.io/ckreddy3030"
+  # image NAME only (no registry part)
+  repository: auth-api
   tag: "0c3cd44"
   digest: "sha256:67a83a994c19a485f512623b137a05393c86629b6ba14cbd91e92b990641327e"
   pullPolicy: IfNotPresent
