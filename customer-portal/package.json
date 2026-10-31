@@ -1,6 +1,6 @@
 {
   "name": "krconnects-customer-portal",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "KRConnects e-commerce customer storefront, built with React. Browse, search and filter products, add to cart, sign up and log in.",
   "private": true,
   "type": "module",
