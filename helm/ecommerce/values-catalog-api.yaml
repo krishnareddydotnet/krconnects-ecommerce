@@ -5,11 +5,11 @@ fullnameOverride: catalog-api   # must match nginx.conf: http://catalog-api:8081
 image:
   # Registry the CI pushed the current image to (CI updates this line, like tag and digest).
   # Override it with an extra -f registries/<name>.yaml (the last -f wins).
-  registry: ""
+  registry: "docker.io/ckreddy3030"
   # image NAME only (no registry part)
   repository: catalog-api
-  tag: "4787b84"
-  digest: "sha256:da458078ea39b426709495c091c1629357c5c79dcd3c3f0cadbc851e7290a768"
+  tag: "8bb45a7"
+  digest: "sha256:98ccd820119d46051f9f29b95755a26825009509eb80ac31cd6a9db8723f7d69"
   pullPolicy: IfNotPresent
 
 env:
