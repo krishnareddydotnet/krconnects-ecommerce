@@ -1,0 +1,37 @@
+# order-api: Node.js (Express) API (internal only, port 8082)
+
+fullnameOverride: order-api   # must match nginx.conf: http://order-api:8082
+
+image:
+  repository: ckreddy3030/order-api
+  # tag    = human-readable: which commit/version (set by CI)
+  # digest = sha256 of the image content, set by CI; this is what Kubernetes actually pulls
+  tag: ""
+  digest: ""
+  pullPolicy: IfNotPresent
+
+env:
+  # Secret used to CHECK login tokens (JWT). Same Secret and key as auth-api,
+  # because the token must be checked with the key it was signed with.
+  - name: Jwt__Key
+    valueFrom:
+      secretKeyRef:
+        name: auth-api-secret
+        key: Jwt__Key
+  # Where order-api finds the Data API (Kubernetes Service name)
+  - name: DATA_API_URL
+    value: "http://data-api:8080"
+
+service:
+  type: ClusterIP      # internal only
+  port: 8082
+
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: http
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: http
