@@ -6,13 +6,13 @@ fullnameOverride: notification-service   # also the Deployment name KEDA scales 
 image:
   # Registry the CI pushed the current image to (CI updates this line, like tag and digest).
   # Override it with an extra -f registries/<name>.yaml (the last -f wins).
-  registry: ""
+  registry: "docker.io/ckreddy3030"
   # image NAME only (no registry part)
   repository: notification-service
   # tag    = human-readable: which commit/version (set by CI)
   # digest = sha256 of the image content, set by CI; this is what Kubernetes actually pulls
-  tag: "4787b84"
-  digest: "sha256:58b13d45b436f57c133a020777b2414409899aa4877a7ead9cba1bbd073c68ab"
+  tag: "8bb45a7"
+  digest: "sha256:ff0ff9270993be2cbef6d3d78ccb2656684616f1ad621e99e8f922b45d2ac914"
   pullPolicy: IfNotPresent
 
 env:
