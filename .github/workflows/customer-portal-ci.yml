@@ -28,9 +28,12 @@ jobs:
       contents: read     # check out the code
       id-token: write    # let GitHub issue an OIDC token, used by azure/login (ACR) and Cosign keyless signing
 
-    # Expose the registry, image tag and digest to the next job (step output -> job output)
+    # Expose the registry NAME, image tag and digest to the next job (step output -> job output)
+    # Only the NAME ("dockerhub" or "acr") is passed, not "docker.io/ckreddy3030": that full value contains
+    # the value of the secret DOCKERHUB_USERNAME, and GitHub silently DROPS a job output that contains a
+    # secret (job 2 would get an empty string). Job 2 maps the name back to the full registry.
     outputs:
-      image_registry: ${{ steps.registry.outputs.registry }}
+      registry_name: ${{ steps.registry.outputs.name }}
       image_tag: ${{ steps.image_tag.outputs.tag }}
       image_digest: ${{ steps.image_digest.outputs.digest }}
 
@@ -46,8 +49,8 @@ jobs:
       # Repository VARIABLE (not a secret): Settings > Secrets and variables > Actions > Variables > IMAGE_REGISTRY
       #   "dockerhub" (or not set) -> docker.io/ckreddy3030/customer-portal          (default, free)
       #   "acr"                    -> krconnectspractice.azurecr.io/customer-portal  (AKS practice)
-      # The Docker Hub account is written here (it is public, not a secret): a value that contains a
-      # secret would be hidden by GitHub and could not be passed to job 2.
+      # The Docker Hub account is written here (it is public); it equals the secret DOCKERHUB_USERNAME,
+      # so only the registry NAME is passed to job 2 (see "outputs" above).
       - name: choose image registry
         id: registry
         env:
@@ -185,9 +188,9 @@ jobs:
     needs: customer-portal-build-test
     runs-on: ubuntu-latest
 
-    # Read the registry, tag and digest from job 1 (needs.<job-id>.outputs.<name>)
+    # Read the registry name, tag and digest from job 1 (needs.<job-id>.outputs.<name>)
     env:
-      IMAGE_REGISTRY: ${{ needs.customer-portal-build-test.outputs.image_registry }}
+      REGISTRY_NAME: ${{ needs.customer-portal-build-test.outputs.registry_name }}
       IMAGE_TAG: ${{ needs.customer-portal-build-test.outputs.image_tag }}
       IMAGE_DIGEST: ${{ needs.customer-portal-build-test.outputs.image_digest }}
 
@@ -202,6 +205,14 @@ jobs:
       - name: Update Helm image registry, tag and digest
         shell: bash
         run: |
+          # Job 1 passes only the registry NAME (a full registry containing the Docker Hub username would be
+          # dropped by GitHub as a secret). Map it to the full registry with the same case as in job 1.
+          case "$REGISTRY_NAME" in
+            dockerhub) IMAGE_REGISTRY="docker.io/ckreddy3030" ;;
+            acr)       IMAGE_REGISTRY="krconnectspractice.azurecr.io" ;;
+            *)         echo "Unknown registry name from job 1: '$REGISTRY_NAME'"; exit 1 ;;
+          esac
+          echo "IMAGE_REGISTRY=$IMAGE_REGISTRY" >> "$GITHUB_ENV"   # also used by the PR step below
           sed -i -E "s|^([[:space:]]*registry:).*|\1 \"$IMAGE_REGISTRY\"|" helm/ecommerce/values-customer-portal.yaml
           sed -i -E "s/^([[:space:]]*tag:).*/\1 \"$IMAGE_TAG\"/" helm/ecommerce/values-customer-portal.yaml
           sed -i -E "s/^([[:space:]]*digest:).*/\1 \"$IMAGE_DIGEST\"/" helm/ecommerce/values-customer-portal.yaml
