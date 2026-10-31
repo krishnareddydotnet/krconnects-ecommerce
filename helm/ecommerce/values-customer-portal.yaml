@@ -7,8 +7,8 @@ image:
   repository: ckreddy3030/customer-portal
   # tag    = human-readable: which commit/version (set by CI)
   # digest = sha256 of the image content, set by CI; this is what Kubernetes actually pulls
-  tag: "f2cd7d9"
-  digest: "sha256:12a84c2eb3747566ba9d1249e7f4a6f828b37e6f14df3a46b37f74d60b4394fb"
+  tag: "c3700ee"
+  digest: "sha256:74b53ba3666b19ad16b679b98388d22621e1685c630f5067a9ed23faeec79b41"
   pullPolicy: IfNotPresent
 
 service:
