@@ -23,6 +23,17 @@ It places orders for logged-in users and lists their orders.
 Login = header `Authorization: Bearer <token>` (the token from auth-api's `/auth/login`).
 Missing or invalid token → `401`.
 
+### Admin endpoints (role `admin` only)
+
+| Method | Path | What it does |
+|---|---|---|
+| GET | `/admin/orders?page=1&pageSize=20` | All orders, newest first, with total count (`pageSize` 1–100) |
+| PATCH | `/admin/orders/{id}/status` | Change the status. Body: `{ "status": "Shipped" }`, one of `Placed`, `Shipped`, `Delivered`, `Cancelled` |
+
+The login token's `role` claim (set by auth-api from `Admin__Usernames`) must be `admin`:
+no token or invalid token → `401`, logged in but not admin → `403`. A token without a `role` claim counts as `customer`.
+The check is done here in the backend (`requireAdmin` in `src/middleware/auth.js`), not only in the admin portal.
+
 ### Order rules
 
 | Rule | Value |

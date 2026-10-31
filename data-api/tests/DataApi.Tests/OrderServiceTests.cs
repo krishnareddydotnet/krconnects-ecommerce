@@ -127,4 +127,74 @@ public class OrderServiceTests
 
         Assert.Empty(orders);
     }
+    // ----- Admin: paging and status -----
+
+    [Fact]
+    public async Task GetPage_ReturnsNewestFirstWithTotals()
+    {
+        var service = CreateService();
+        for (int i = 1; i <= 5; i++)
+        {
+            await service.CreateAsync(SampleRequest($"KRC-20261031-PAGE0{i}", userId: i));
+        }
+
+        var page1 = await service.GetPageAsync(1, 2);
+        var page3 = await service.GetPageAsync(3, 2);
+
+        Assert.Equal(5, page1.TotalCount);
+        Assert.Equal(3, page1.TotalPages);                       // 5 / 2 = 2.5 -> 3 pages
+        Assert.Equal("KRC-20261031-PAGE05", page1.Items[0].OrderNumber);   // newest first
+        Assert.Equal(2, page1.Items[0].Items.Count);             // order lines included
+        Assert.Single(page3.Items);                              // last page has the rest
+        Assert.Equal("KRC-20261031-PAGE01", page3.Items[0].OrderNumber);
+    }
+
+    [Fact]
+    public async Task GetPage_BadValues_AreCorrected()
+    {
+        var service = CreateService();
+
+        var result = await service.GetPageAsync(0, 1000);
+
+        Assert.Equal(1, result.Page);
+        Assert.Equal(100, result.PageSize);
+        Assert.Equal(0, result.TotalCount);
+        Assert.Equal(0, result.TotalPages);
+    }
+
+    [Fact]
+    public async Task UpdateStatus_ChangesStatus()
+    {
+        var service = CreateService();
+        var created = await service.CreateAsync(SampleRequest());
+
+        var updated = await service.UpdateStatusAsync(created!.Id, "Shipped");
+        var reloaded = await service.GetByIdAsync(created.Id);
+
+        Assert.Equal("Shipped", updated!.Status);
+        Assert.Equal("Shipped", reloaded!.Status);
+    }
+
+    [Fact]
+    public async Task UpdateStatus_UnknownId_ReturnsNull()
+    {
+        var service = CreateService();
+
+        var updated = await service.UpdateStatusAsync(9999, "Shipped");
+
+        Assert.Null(updated);
+    }
+
+    [Theory]
+    [InlineData("Placed", true)]
+    [InlineData("Shipped", true)]
+    [InlineData("Delivered", true)]
+    [InlineData("Cancelled", true)]
+    [InlineData("shipped", false)]
+    [InlineData("Lost", false)]
+    [InlineData("", false)]
+    public void OrderStatuses_OnlyAllowsKnownValues(string status, bool expected)
+    {
+        Assert.Equal(expected, OrderStatuses.IsValid(status));
+    }
 }

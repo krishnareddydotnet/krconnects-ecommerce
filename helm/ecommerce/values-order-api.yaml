@@ -3,7 +3,7 @@
 fullnameOverride: order-api   # must match nginx.conf: http://order-api:8082
 
 image:
-  repository: ckreddy3030/order-api
+  repository: krconnectspractice.azurecr.io/order-api
   # tag    = human-readable: which commit/version (set by CI)
   # digest = sha256 of the image content, set by CI; this is what Kubernetes actually pulls
   tag: ""

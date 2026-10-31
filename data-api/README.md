@@ -24,6 +24,8 @@ It is the **only** service that talks to SQL Server. Other services (auth-api, c
 | POST | `/orders` | Create order + items in one transaction (called by order-api) - `201`, or `409` if the order number exists |
 | GET | `/orders/user/{userId}` | Orders of one user, newest first, with items |
 | GET | `/orders/{id}` | One order with items |
+| GET | `/orders?page=1&pageSize=20` | One page of **all** orders, newest first, with items and total count (admin list, via order-api) |
+| PATCH | `/orders/{id}/status` | Change the status: `Placed`, `Shipped`, `Delivered` or `Cancelled` (admin, via order-api) |
 
 ## Configuration
 

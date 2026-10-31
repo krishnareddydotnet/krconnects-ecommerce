@@ -7,7 +7,8 @@
 //   - issuer   = krconnects-auth-api
 //   - audience = krconnects-customer-portal
 //   - not expired (1 minute clock skew allowed, like auth-api)
-// The token's "sub" claim is the user id, "name" is the username.
+// The token's "sub" claim is the user id, "name" is the username,
+// "role" is "admin" or "customer" (used by requireAdmin below).
 //
 // The token is never logged.
 // -----------------------------------------------------------------------
@@ -61,9 +62,21 @@ function requireLogin(req, res, next) {
     return unauthorized(res);
   }
 
+  // Tokens from before roles existed have no "role" claim: treat them as customers
+  const role = claims.role === 'admin' ? 'admin' : 'customer';
+
   // Make the logged-in user available to the route handlers
-  req.user = { id: userId, username: claims.name };
+  req.user = { id: userId, username: claims.name, role: role };
   next();
 }
 
-module.exports = { requireLogin };
+// Use AFTER requireLogin: the user is logged in, but are they an admin?
+// Logged in but not admin -> 403 (Forbidden), not 401: logging in again won't help.
+function requireAdmin(req, res, next) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'This action is only allowed for administrators.' });
+  }
+  next();
+}
+
+module.exports = { requireLogin, requireAdmin };

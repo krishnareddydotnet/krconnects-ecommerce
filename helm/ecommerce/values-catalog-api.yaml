@@ -14,6 +14,13 @@ env:
   # Later with Front Door: "https://www.krconnects.com/images/"
   - name: IMAGES_BASE_URL
     value: "https://stkrcimagesdevcin001.blob.core.windows.net/"
+  # Secret used to CHECK login tokens on /admin/** (admin product endpoints).
+  # Same Secret and key as auth-api, because a token must be checked with the key it was signed with.
+  - name: Jwt__Key
+    valueFrom:
+      secretKeyRef:
+        name: auth-api-secret
+        key: Jwt__Key
 
 service:
   type: ClusterIP

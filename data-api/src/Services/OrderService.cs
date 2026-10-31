@@ -69,6 +69,51 @@ public class OrderService
             .ToListAsync();
     }
 
+    // READ: one PAGE of all orders (admin list), newest first, with items.
+    // Only the rows for this page are read from the database.
+    public async Task<PagedOrders> GetPageAsync(int page, int pageSize)
+    {
+        // Keep the numbers sensible: page >= 1, pageSize between 1 and 100
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        int totalCount = await _db.Orders.CountAsync();
+
+        var items = await _db.Orders
+            .Include(o => o.Items)
+            .OrderByDescending(o => o.CreatedAt)
+            .ThenByDescending(o => o.Id)               // same time? newest id first (stable paging)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedOrders
+        {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
+        };
+    }
+
+    // UPDATE: change the status of an order (null if the order doesn't exist).
+    // The caller checks that the status is allowed (OrderStatuses.IsValid).
+    public async Task<Order?> UpdateStatusAsync(int id, string status)
+    {
+        var order = await _db.Orders
+            .Include(o => o.Items)
+            .FirstOrDefaultAsync(o => o.Id == id);
+        if (order == null)
+        {
+            return null;
+        }
+
+        order.Status = status;
+        await _db.SaveChangesAsync();   // UPDATE happens here
+        return order;
+    }
+
     // READ: one order with its items (null if not found)
     public async Task<Order?> GetByIdAsync(int id)
     {

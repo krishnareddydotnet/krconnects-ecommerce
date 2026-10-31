@@ -11,7 +11,8 @@ namespace AuthApi.Services;
 /// Creates the JWT that the customer portal gets after a successful login.
 ///
 /// A JWT has 3 parts:  header . payload . signature
-///   payload   = "claims": who the user is (sub = user id, name = username) + expiry
+///   payload   = "claims": who the user is (sub = user id, name = username,
+///               role = "admin" or "customer") + expiry
 ///   signature = made with our secret Jwt:Key, so nobody can change the payload
 /// </summary>
 public class JwtTokenService
@@ -23,7 +24,7 @@ public class JwtTokenService
         _settings = settings.Value;
     }
 
-    public LoginResponse CreateToken(int userId, string username)
+    public LoginResponse CreateToken(int userId, string username, string role)
     {
         // HS256 needs a key of at least 256 bits (32 characters)
         if (string.IsNullOrWhiteSpace(_settings.Key) || _settings.Key.Length < 32)
@@ -41,7 +42,8 @@ public class JwtTokenService
             Subject = new ClaimsIdentity(new[]
             {
                 new Claim("sub", userId.ToString()),   // user id
-                new Claim("name", username)            // username
+                new Claim("name", username),           // username
+                new Claim("role", role)                // "admin" or "customer" (checked by other services)
             }),
             SigningCredentials = new SigningCredentials(
                 new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_settings.Key)),

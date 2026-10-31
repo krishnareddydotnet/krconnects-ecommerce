@@ -9,9 +9,11 @@ namespace DataApi.Controllers;
 ///   POST /orders                -> create order + items (one transaction)
 ///   GET  /orders/user/{userId}  -> orders of a user, newest first, with items
 ///   GET  /orders/{id}           -> one order with items
+///   GET  /orders?page=1&amp;pageSize=20 -> one page of ALL orders, newest first (admin list)
+///   PATCH /orders/{id}/status   -> change the status (admin), body { status }
 ///
 /// The Data API does NOT check who is logged in: order-api does that
-/// and only asks for the orders of the logged-in user.
+/// (only the user's own orders, and admin endpoints only for admins).
 /// </summary>
 [ApiController]
 [Route("orders")]
@@ -34,6 +36,30 @@ public class OrdersController : ControllerBase
         }
 
         return CreatedAtAction(nameof(GetById), new { id = order.Id }, order);                         // 201
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetPage([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        var result = await _orderService.GetPageAsync(page, pageSize);
+        return Ok(result);
+    }
+
+    [HttpPatch("{id:int}/status")]
+    public async Task<IActionResult> UpdateStatus(int id, UpdateOrderStatusRequest request)
+    {
+        if (!OrderStatuses.IsValid(request.Status))
+        {
+            return BadRequest(new { message = "status must be one of: " + string.Join(", ", OrderStatuses.All) + "." });
+        }
+
+        var order = await _orderService.UpdateStatusAsync(id, request.Status);
+        if (order == null)
+        {
+            return NotFound(new { message = $"Order {id} not found." });
+        }
+
+        return Ok(order);
     }
 
     [HttpGet("user/{userId:int}")]

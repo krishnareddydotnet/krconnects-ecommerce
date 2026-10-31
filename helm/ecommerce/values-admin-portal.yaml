@@ -1,0 +1,26 @@
+# admin-portal: Angular UI served by nginx (non-root, port 8080), for administrators
+
+# Fixed name, so the Deployment and Service are called "admin-portal"
+fullnameOverride: admin-portal
+
+image:
+  repository: krconnectspractice.azurecr.io/admin-portal
+  # tag    = human-readable: which commit/version (set by CI)
+  # digest = sha256 of the image content, set by CI; this is what Kubernetes actually pulls
+  tag: ""
+  digest: ""
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP   # internal only; reach it through the Istio ingress gateway (see admin-portal/README.md)
+  port: 8080        # also used as the containerPort by the chart
+
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: http
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: http

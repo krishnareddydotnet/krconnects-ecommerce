@@ -1,0 +1,14 @@
+{
+  "/api": {
+    "target": "http://localhost:8080",
+    "pathRewrite": { "^/api": "" }
+  },
+  "/catalog-api": {
+    "target": "http://localhost:8081",
+    "pathRewrite": { "^/catalog-api": "" }
+  },
+  "/order-api": {
+    "target": "http://localhost:8082",
+    "pathRewrite": { "^/order-api": "" }
+  }
+}

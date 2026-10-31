@@ -9,6 +9,7 @@
 const express = require('express');
 const healthRoutes = require('./routes/health');
 const orderRoutes = require('./routes/orders');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 
@@ -45,6 +46,7 @@ app.get('/', (req, res) => {
 
 app.use('/health', healthRoutes);
 app.use('/orders', orderRoutes);
+app.use('/admin', adminRoutes);
 
 // Unknown URL -> 404 as JSON (not Express' default HTML page)
 app.use((req, res) => {

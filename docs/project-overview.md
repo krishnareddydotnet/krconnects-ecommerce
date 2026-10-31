@@ -1,6 +1,6 @@
 # KRConnects e-commerce: project overview
 
-A microservices e-commerce application: a React website, four backend APIs, a background worker, an Azure SQL database
+A microservices e-commerce application: a React shop website, an Angular admin website, four backend APIs, a background worker, an Azure SQL database
 and Azure Blob Storage for product images.
 
 Repository: https://github.com/krishnareddydotnet/krconnects-ecommerce
@@ -12,10 +12,11 @@ Repository: https://github.com/krishnareddydotnet/krconnects-ecommerce
 | Service | Tech | Port | What it does |
 |---|---|---|---|
 | `customer-portal` | React + nginx | 8080 | The website UI; nginx forwards API calls to the backends |
-| `auth-api` | .NET 10 (ASP.NET Core Web API) | 8080 | Signup/login, issues JWT tokens (uses `auth-api-secret`) |
-| `catalog-api` | Java 25, Spring Boot | 8081 | Product list/details; builds image URLs from Blob Storage |
+| `admin-portal` | Angular + nginx | 8080 | Admin website: manage products and orders (admins only); nginx forwards API calls to the backends |
+| `auth-api` | .NET 10 (ASP.NET Core Web API) | 8080 | Signup/login, issues JWT tokens with a `role` claim (`admin`/`customer`) (uses `auth-api-secret`) |
+| `catalog-api` | Java 25, Spring Boot | 8081 | Product list/details; builds image URLs from Blob Storage; admin product create/update/delete |
 | `data-api` | .NET 10 (ASP.NET Core Web API, EF Core) | 8080 | Database CRUD against Azure SQL (uses `data-api-secret`) |
-| `order-api` | Node.js 22, Express | 8082 | Places orders (prices checked on the server) and lists a user's orders; checks the JWT with `auth-api-secret` |
+| `order-api` | Node.js 22, Express | 8082 | Places orders (prices checked on the server) and lists a user's orders; admin order list and status changes; checks the JWT with `auth-api-secret` |
 | `notification-service` | Node.js 22 (background worker) | 8083 (health only) | Reads `OrderPlaced` events from Azure Service Bus and sends order confirmations |
 
 All services:
@@ -58,13 +59,31 @@ customer-portal (React + nginx)
    '-- product images loaded by the browser directly from Azure Blob Storage
 ```
 
+The **admin portal** (separate host, e.g. `admin.<domain>`, ideally restricted by IP or private network) uses the same
+three routes through its own nginx: `/api/` (login), `/catalog-api/admin/products` and `/order-api/admin/orders`.
+It never calls data-api directly.
+
+### Admin endpoints
+
+Admin rights come from the `role` claim in the login token (auth-api setting `Admin__Usernames`).
+They are checked in the **backend services**, not only hidden in the UI:
+
+| Service | Endpoint | Purpose |
+|---|---|---|
+| catalog-api | `GET /admin/products/{id}` | One product with its image path (edit form) |
+| catalog-api | `POST /admin/products`, `PUT /admin/products/{id}`, `DELETE /admin/products/{id}` | Manage products |
+| order-api | `GET /admin/orders?page=&pageSize=` | All orders, newest first |
+| order-api | `PATCH /admin/orders/{id}/status` | Change status: `Placed`, `Shipped`, `Delivered`, `Cancelled` |
+
+No token or invalid token → `401`; valid token but not admin → `403`.
+
 ---
 
 ## 4. Secrets
 
 | Kubernetes Secret | Key | Used by | Purpose |
 |---|---|---|---|
-| `auth-api-secret` | `Jwt__Key` | auth-api, order-api | auth-api signs login tokens (JWT); order-api checks them |
+| `auth-api-secret` | `Jwt__Key` | auth-api, order-api, catalog-api | auth-api signs login tokens (JWT); order-api and catalog-api check them |
 | `data-api-secret` | `ConnectionStrings__DataDb` | data-api | Azure SQL connection string |
 
 Azure Service Bus needs **no** Kubernetes Secret: order-api and notification-service log in with

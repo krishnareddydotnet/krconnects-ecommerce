@@ -18,6 +18,10 @@ env:
   # Where auth-api finds the Data API (Kubernetes Service name)
   - name: DataApi__Url
     value: "http://data-api:8080"
+  # Usernames (comma-separated) that get role "admin" in their login token.
+  # Placeholder: replace with the username(s) you signed up as admin. Not a secret.
+  - name: Admin__Usernames
+    value: "admin"
 
 service:
   type: ClusterIP      # internal only
