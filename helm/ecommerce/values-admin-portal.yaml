@@ -4,7 +4,7 @@
 fullnameOverride: admin-portal
 
 image:
-  repository: ckreddy3030/admin-portal
+  repository: krconnectspractice.azurecr.io/admin-portal
   # tag    = human-readable: which commit/version (set by CI)
   # digest = sha256 of the image content, set by CI; this is what Kubernetes actually pulls
   tag: ""
