@@ -1,0 +1,7 @@
+# Pull images from Docker Hub (the default; free, works on Docker Desktop and AKS).
+# Use as the LAST -f so it wins over the registry in values-<service>.yaml:
+#   helm upgrade --install data-api helm/ecommerce -f helm/ecommerce/values-data-api.yaml -f helm/ecommerce/registries/dockerhub.yaml
+# The image must exist there: set the GitHub variable IMAGE_REGISTRY to "dockerhub" (or leave it empty)
+# and run the service's workflow. Tag and digest still come from values-<service>.yaml.
+image:
+  registry: "docker.io/ckreddy3030"

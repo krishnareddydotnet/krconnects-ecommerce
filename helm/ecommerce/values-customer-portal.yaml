@@ -4,7 +4,11 @@
 fullnameOverride: customer-portal
 
 image:
-  repository: krconnectspractice.azurecr.io/customer-portal
+  # Registry the CI pushed the current image to (CI updates this line, like tag and digest).
+  # Override it with an extra -f registries/<name>.yaml (the last -f wins).
+  registry: "docker.io/ckreddy3030"
+  # image NAME only (no registry part)
+  repository: customer-portal
   tag: "v1.0.0"
   digest: ""
   pullPolicy: IfNotPresent

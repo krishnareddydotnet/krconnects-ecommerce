@@ -37,7 +37,7 @@ All services:
 - Only **data-api** talks to the database. auth-api, catalog-api and order-api get data by calling data-api.
 - The database stores only the **image path**; catalog-api adds the base URL from the `IMAGES_BASE_URL` setting.
   Later, with Azure Front Door, only this setting changes.
-- The Azure SQL firewall must allow the cluster's **outbound public IP**.
+- The Azure SQL firewall must allow the cluster's **outbound public IP** (on Docker Desktop: your laptop's public IP).
 
 ---
 
@@ -99,8 +99,10 @@ Secrets are never stored in Git. They are created directly in the cluster
 | Area | Tool |
 |---|---|
 | CI/CD | GitHub Actions (one pipeline per service) |
-| Container registry | Docker Hub (Azure Container Registry for AKS practice) |
+| Container registry | Docker Hub by default, or Azure Container Registry for AKS practice: chosen by the GitHub variable `IMAGE_REGISTRY` (CI) and `helm/ecommerce/registries/*.yaml` (Helm) |
 | Packaging | One shared Helm chart (`helm/ecommerce`) + one values file per service |
 | GitOps | Argo CD |
 | Service mesh / ingress | Istio |
 | Infrastructure as Code | Terraform (`infra/terraform`) |
+
+How to run on Docker Desktop or AKS and switch the registry: `docs/local-and-aks.md`.
