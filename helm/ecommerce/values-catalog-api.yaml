@@ -3,11 +3,9 @@
 fullnameOverride: catalog-api   # must match nginx.conf: http://catalog-api:8081
 
 image:
-  repository: ckreddy3030/catalog-api
-  # tag    = human-readable: which commit/version (set by CI)
-  # digest = sha256 of the image content, set by CI; this is what Kubernetes actually pulls
-  tag: "0585224"
-  digest: "sha256:f6d9f9ecd6a7e33a84a84616780a580929b6607eda236dd31e30de4a87e15a8e"
+  repository: krconnectspractice.azurecr.io/catalog-api
+  tag: "v1.0.0"
+  digest: ""
   pullPolicy: IfNotPresent
 
 env:
