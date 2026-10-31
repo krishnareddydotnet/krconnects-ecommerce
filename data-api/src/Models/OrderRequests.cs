@@ -57,3 +57,27 @@ public class CreateOrderItemRequest
     [Range(typeof(decimal), "0", "99999999")]
     public decimal LineTotal { get; set; }
 }
+
+// -----------------------------------------------------------------------
+// Request body for PATCH /orders/{id}/status (sent by order-api for admins).
+// -----------------------------------------------------------------------
+
+public class UpdateOrderStatusRequest
+{
+    [Required]
+    public string Status { get; set; } = "";
+}
+
+/// <summary>
+/// The allowed order statuses. order-api checks them too; the Data API checks
+/// again so a wrong value can never reach the database.
+/// </summary>
+public static class OrderStatuses
+{
+    public static readonly string[] All = { "Placed", "Shipped", "Delivered", "Cancelled" };
+
+    public static bool IsValid(string status)
+    {
+        return All.Contains(status);   // exact match: "shipped" is not allowed, "Shipped" is
+    }
+}
