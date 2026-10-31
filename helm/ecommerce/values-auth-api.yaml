@@ -4,8 +4,8 @@ fullnameOverride: auth-api   # must match nginx.conf: http://auth-api:8080
 
 image:
   repository: krconnectspractice.azurecr.io/auth-api
-  tag: "v1.0.0"
-  digest: ""
+  tag: "0c3cd44"
+  digest: "sha256:67a83a994c19a485f512623b137a05393c86629b6ba14cbd91e92b990641327e"
   pullPolicy: IfNotPresent
 
 env:
