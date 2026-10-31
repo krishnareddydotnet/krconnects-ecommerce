@@ -4,8 +4,8 @@ fullnameOverride: data-api   # must match nginx.conf: http://data-api:8080
 
 image:
   repository: krconnectspractice.azurecr.io/data-api
-  tag: "v1.0.0"
-  digest: ""
+  tag: "0c3cd44"
+  digest: "sha256:15a413b10654ffd84aa42a6b5170940a60115534b3b7619835325aa4036289ef"
   pullPolicy: IfNotPresent
 
 env:
