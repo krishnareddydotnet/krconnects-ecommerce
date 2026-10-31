@@ -4,6 +4,8 @@ const request = require('supertest');
 const { makeToken, products } = require('./helpers');
 const app = require('../src/app');
 const dataApiClient = require('../src/services/dataApiClient');
+const { ServiceBusClient } = require('@azure/service-bus');
+const { closeEventPublisher } = require('../src/events/orderEvents');
 
 const token = makeToken({ userId: 1, username: 'krishna' });
 
@@ -132,6 +134,26 @@ describe('POST /orders', () => {
       .send('{ not json');
 
     assert.equal(res.status, 400);
+  });
+
+  it('still returns 201 when the OrderPlaced event cannot be sent', async () => {
+    // The order is already saved, so a Service Bus problem must not fail it
+    process.env.SERVICEBUS_NAMESPACE = 'test-namespace.servicebus.windows.net';
+    const failingSender = {
+      sendMessages: async () => { throw new Error('Service Bus is down'); },
+      close: async () => {}
+    };
+    mock.method(ServiceBusClient.prototype, 'createSender', () => failingSender);
+    mock.method(ServiceBusClient.prototype, 'close', async () => {});
+    mock.method(console, 'error', () => {});
+
+    try {
+      const res = await postOrder({ items: [{ productId: 4, quantity: 1 }] });
+      assert.equal(res.status, 201);
+    } finally {
+      await closeEventPublisher();
+      delete process.env.SERVICEBUS_NAMESPACE;
+    }
   });
 
   it('returns 503 when the Data API is down', async () => {

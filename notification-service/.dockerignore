@@ -1,0 +1,13 @@
+# Keep the Docker build context small and free of local files/secrets
+node_modules
+npm-debug.log*
+tests
+coverage
+.env
+.env.*
+.git
+.gitignore
+Dockerfile
+.dockerignore
+README.md
+deploy

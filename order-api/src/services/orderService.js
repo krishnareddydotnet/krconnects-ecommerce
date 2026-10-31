@@ -145,7 +145,9 @@ async function placeOrder(user, items) {
     items: lines
   });
 
-  // 5. Let the rest of the system know (only a log line for now)
+  // 5. Let the rest of the system know (Service Bus "OrderPlaced" event).
+  //    Not awaited on purpose: the customer shouldn't wait for Service Bus.
+  //    publishOrderPlaced never throws, it logs its own errors.
   publishOrderPlaced(saved);
 
   return saved;

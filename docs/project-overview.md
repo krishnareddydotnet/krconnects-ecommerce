@@ -1,6 +1,6 @@
 # KRConnects e-commerce: project overview
 
-A microservices e-commerce application: a React website, four backend APIs, an Azure SQL database
+A microservices e-commerce application: a React website, four backend APIs, a background worker, an Azure SQL database
 and Azure Blob Storage for product images.
 
 Repository: https://github.com/krishnareddydotnet/krconnects-ecommerce
@@ -16,6 +16,7 @@ Repository: https://github.com/krishnareddydotnet/krconnects-ecommerce
 | `catalog-api` | Java 25, Spring Boot | 8081 | Product list/details; builds image URLs from Blob Storage |
 | `data-api` | .NET 10 (ASP.NET Core Web API, EF Core) | 8080 | Database CRUD against Azure SQL (uses `data-api-secret`) |
 | `order-api` | Node.js 22, Express | 8082 | Places orders (prices checked on the server) and lists a user's orders; checks the JWT with `auth-api-secret` |
+| `notification-service` | Node.js 22 (background worker) | 8083 (health only) | Reads `OrderPlaced` events from Azure Service Bus and sends order confirmations |
 
 All services:
 - run as containers in Kubernetes (Docker Desktop locally, AKS in Azure),
@@ -29,6 +30,7 @@ All services:
 | Resource | Type | Used by | What it stores |
 |---|---|---|---|
 | Azure SQL Database `ecommerce` | Azure SQL (DTU **Basic** tier) | `data-api` only | Tables `Users`, `Products`, `Orders` and `OrderItems` |
+| Azure Service Bus, topic `orders` | Service Bus namespace (Standard tier) | order-api (send), notification-service (receive) | `OrderPlaced` events (setup: `docs/service-bus-setup.md`) |
 | Azure Blob Storage, container `products` | Storage account (Standard LRS, Hot) | Browser (via URLs from `catalog-api`) | Product images (e.g. `products/wireless-mouse.webp`) |
 
 - Only **data-api** talks to the database. auth-api, catalog-api and order-api get data by calling data-api.
@@ -51,6 +53,7 @@ customer-portal (React + nginx)
    |-- /api/          -> auth-api:8080     --> data-api:8080 --> Azure SQL
    |-- /catalog-api/  -> catalog-api:8081  --> data-api:8080 --> Azure SQL
    |-- /order-api/    -> order-api:8082    --> data-api:8080 --> Azure SQL
+   |                       '--> Service Bus topic "orders" --> notification-service
    |
    '-- product images loaded by the browser directly from Azure Blob Storage
 ```
@@ -63,6 +66,9 @@ customer-portal (React + nginx)
 |---|---|---|---|
 | `auth-api-secret` | `Jwt__Key` | auth-api, order-api | auth-api signs login tokens (JWT); order-api checks them |
 | `data-api-secret` | `ConnectionStrings__DataDb` | data-api | Azure SQL connection string |
+
+Azure Service Bus needs **no** Kubernetes Secret: order-api and notification-service log in with
+Microsoft Entra Workload Identity (one managed identity each).
 
 Secrets are never stored in Git. They are created directly in the cluster
 (planned: Azure Key Vault with Workload Identity and the Secrets Store CSI driver).

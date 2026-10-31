@@ -1,0 +1,13 @@
+# Dependencies (installed with "npm ci", never committed)
+node_modules/
+
+# Logs
+npm-debug.log*
+*.log
+
+# Local environment files (may contain secrets)
+.env
+.env.*
+
+# Test coverage
+coverage/
