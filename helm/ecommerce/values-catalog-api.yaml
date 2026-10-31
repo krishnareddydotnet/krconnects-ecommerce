@@ -4,8 +4,8 @@ fullnameOverride: catalog-api   # must match nginx.conf: http://catalog-api:8081
 
 image:
   repository: krconnectspractice.azurecr.io/catalog-api
-  tag: "v1.0.0"
-  digest: ""
+  tag: "0c3cd44"
+  digest: "sha256:54be13767f16c75e20e78157e66d6bac2919c94877f86f16163939db0ad79ea4"
   pullPolicy: IfNotPresent
 
 env:
