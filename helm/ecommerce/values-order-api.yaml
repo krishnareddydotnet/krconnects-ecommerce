@@ -5,13 +5,13 @@ fullnameOverride: order-api   # must match nginx.conf: http://order-api:8082
 image:
   # Registry the CI pushed the current image to (CI updates this line, like tag and digest).
   # Override it with an extra -f registries/<name>.yaml (the last -f wins).
-  registry: "docker.io/ckreddy3030"
+  registry: ""
   # image NAME only (no registry part)
   repository: order-api
   # tag    = human-readable: which commit/version (set by CI)
   # digest = sha256 of the image content, set by CI; this is what Kubernetes actually pulls
-  tag: ""
-  digest: ""
+  tag: "4787b84"
+  digest: "sha256:0c1e5b0be46bd91972ad031459f870c533e9490d0d93b238a6ad1a2ef645e276"
   pullPolicy: IfNotPresent
 
 env:

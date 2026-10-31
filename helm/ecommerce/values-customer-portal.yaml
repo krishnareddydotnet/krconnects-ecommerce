@@ -6,11 +6,11 @@ fullnameOverride: customer-portal
 image:
   # Registry the CI pushed the current image to (CI updates this line, like tag and digest).
   # Override it with an extra -f registries/<name>.yaml (the last -f wins).
-  registry: "docker.io/ckreddy3030"
+  registry: ""
   # image NAME only (no registry part)
   repository: customer-portal
-  tag: "v1.0.0"
-  digest: ""
+  tag: "4787b84"
+  digest: "sha256:a4f5845adc088d9f7e3e21743e4b96a37c5a988fd6cf1467b9b43acf338efdca"
   pullPolicy: IfNotPresent
 
 service:
