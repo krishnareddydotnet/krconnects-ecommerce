@@ -5,11 +5,11 @@ fullnameOverride: data-api   # must match nginx.conf: http://data-api:8080
 image:
   # Registry the CI pushed the current image to (CI updates this line, like tag and digest).
   # Override it with an extra -f registries/<name>.yaml (the last -f wins).
-  registry: ""
+  registry: "docker.io/ckreddy3030"
   # image NAME only (no registry part)
   repository: data-api
-  tag: "4787b84"
-  digest: "sha256:258d170ef289bb0dcf83cf9dd7362c2d129129871c57eac8f14db564e86a11e8"
+  tag: "8bb45a7"
+  digest: "sha256:414a31ac56b591bbbe35c1b58ce9ab725033ca1f6412a7531e5af3f185fe63f4"
   pullPolicy: IfNotPresent
 
 env:
