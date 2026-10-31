@@ -5,11 +5,11 @@ fullnameOverride: auth-api   # must match nginx.conf: http://auth-api:8080
 image:
   # Registry the CI pushed the current image to (CI updates this line, like tag and digest).
   # Override it with an extra -f registries/<name>.yaml (the last -f wins).
-  registry: ""
+  registry: "docker.io/ckreddy3030"
   # image NAME only (no registry part)
   repository: auth-api
-  tag: "4787b84"
-  digest: "sha256:5e3702a9d58d060b33ddab8bf8391968daaad117959027af5bc8e5f899aa9806"
+  tag: "8bb45a7"
+  digest: "sha256:785a84c41abd67f44f41b385f8d3614f94460c9d07be5439fb44306d0b09f915"
   pullPolicy: IfNotPresent
 
 env:
