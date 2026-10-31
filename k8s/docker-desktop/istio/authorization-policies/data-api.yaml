@@ -1,0 +1,20 @@
+# data-api: the only service that talks to Azure SQL; called only by the backend APIs.
+# ALLOW policy = only the callers listed below may call this service; everyone else is denied.
+# Callers are identified by their service account (verified through mTLS).
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: data-api
+  namespace: default
+spec:
+  action: ALLOW
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: data-api
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/default/sa/auth-api                 # users
+              - cluster.local/ns/default/sa/catalog-api              # products
+              - cluster.local/ns/default/sa/order-api                # orders
