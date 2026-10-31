@@ -6,13 +6,13 @@ fullnameOverride: admin-portal
 image:
   # Registry the CI pushed the current image to (CI updates this line, like tag and digest).
   # Override it with an extra -f registries/<name>.yaml (the last -f wins).
-  registry: "docker.io/ckreddy3030"
+  registry: ""
   # image NAME only (no registry part)
   repository: admin-portal
   # tag    = human-readable: which commit/version (set by CI)
   # digest = sha256 of the image content, set by CI; this is what Kubernetes actually pulls
-  tag: ""
-  digest: ""
+  tag: "4787b84"
+  digest: "sha256:43aa42504ae737665463ce2871b3225ab1d25b9072fb2a9dabc6f4de5887083c"
   pullPolicy: IfNotPresent
 
 service:
