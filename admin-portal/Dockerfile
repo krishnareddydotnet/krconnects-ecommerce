@@ -1,5 +1,18 @@
 # -----------------------------------------------------------------------
 # KRConnects Admin Portal - multi-stage Dockerfile
+#
+# Tech stack : Angular 22, TypeScript (build), nginx (serve)
+# Port       : 8080
+# Runs as    : nginx (UID 101)
+# Stages     : 1) build   (node:22-alpine) -> npm ci, npm run build (dist/admin-portal/browser)
+#              2) runtime (nginxinc/nginx-unprivileged:alpine) -> serves the app and forwards API calls (nginx.conf)
+#
+# Local commands (run from the admin-portal folder):
+#   Build image : docker build -t admin-portal:v1.0.0 .
+#   Run         : docker run --rm -p 8080:8080 --add-host auth-api:127.0.0.1 --add-host catalog-api:127.0.0.1 --add-host order-api:127.0.0.1 admin-portal:v1.0.0
+#                 (nginx.conf names auth-api, catalog-api, order-api; nginx won't start unless they resolve)
+#   Test        : curl http://localhost:8080/health/live
+#   Unit tests  : npm ci && npm test
 # -----------------------------------------------------------------------
 
 # Stage 1: Build (Node.js needed only at build time to compile the Angular app)
