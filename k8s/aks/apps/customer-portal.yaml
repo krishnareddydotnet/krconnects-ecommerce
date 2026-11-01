@@ -51,7 +51,7 @@ spec:
       containers:
         - name: customer-portal
           # CI replaces this whole line with <image>:<tag>@<digest> (bot PR). Do not edit it by hand.
-          image: krconnectspractice.azurecr.io/customer-portal:placeholder
+          image: krconnectspractice.azurecr.io/customer-portal:2b831d3@sha256:4a422c74ae716a9e9ecbe178f0144672117ec1e42b3aa3ddc37788656e7091e4
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
