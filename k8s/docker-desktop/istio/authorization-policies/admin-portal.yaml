@@ -1,0 +1,18 @@
+# admin-portal: only the Istio ingress gateway may call it (when exposed on an admin host).
+# kubectl port-forward does not pass through the sidecar, so local testing still works.
+# In production, also restrict by source IP (ipBlocks) or keep it on a private network.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: admin-portal
+  namespace: default
+spec:
+  action: ALLOW
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: admin-portal
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/istio-ingress/sa/istio-ingress

@@ -21,9 +21,11 @@ Secrets are NOT here: create them with kubectl (see docs/local-and-aks.md).
 | catalog-api | customer-portal, admin-portal |
 | order-api | customer-portal, admin-portal |
 | data-api | auth-api, catalog-api, order-api |
-| admin-portal | no policy yet (reached with kubectl port-forward only) |
+| admin-portal | Istio ingress gateway (for a future admin host); port-forward still works |
+| everything else | denied by the `allow-nothing` baseline (e.g. notification-service) |
 
 notification-service is not deployed on Docker Desktop (it needs Azure Service Bus).
+Full rebuild guide: `docs/docker-desktop-setup.md`.
 
 ## Apply (from the repo root)
 

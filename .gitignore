@@ -404,3 +404,6 @@ terraform.rc
 
 # Keep Terraform provider dependency lock file tracked
 !.terraform.lock.hcl
+
+# Local-only Helm overrides for laptop testing (never committed)
+helm/ecommerce/*.local.yaml
