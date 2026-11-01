@@ -1,0 +1,210 @@
+name: aks data-api ci
+
+# Builds data-api, pushes the image to Azure Container Registry (ACR) and updates
+# k8s/aks/apps/data-api.yaml through a bot PR. The cluster is updated with kubectl (or Argo CD) after the merge.
+
+# Workflow-level permissions: used by the publish job (job 1 sets its own, smaller set)
+permissions:
+  contents: write        # create the branch with the updated manifest
+  pull-requests: write   # open the image-update PR
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'data-api/**'
+      - '.github/workflows/aks-data-api-ci.yml'
+  workflow_dispatch:
+
+jobs:
+
+  # ---------------------------------------------------------------
+  # Job 1: secret scan, build, test, image build, Trivy, push and sign (ACR)
+  # ---------------------------------------------------------------
+  data-api-build-test:
+    runs-on: ubuntu-24.04
+
+    # Job-level permissions REPLACE the workflow-level ones for this job (least privilege):
+    permissions:
+      contents: read     # check out the code
+      id-token: write    # let GitHub issue an OIDC token, used by azure/login and Cosign keyless signing
+
+    # Expose the image tag and digest to the next job (step output -> job output).
+    # Only plain values: GitHub drops a job output that contains a secret's value.
+    outputs:
+      image_tag: ${{ steps.image_tag.outputs.tag }}
+      image_digest: ${{ steps.image_digest.outputs.digest }}
+
+    # Full image name (registry + name), used by every step below
+    env:
+      IMAGE: krconnectspractice.azurecr.io/data-api
+
+    defaults:
+      run:
+        working-directory: data-api
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0          # full history, so gitleaks can scan every new commit
+
+      - name: secret scanning (gitleaks)
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: restore packages
+        run: dotnet restore
+
+      - name: build
+        run: dotnet build
+
+      - name: unit tests
+        run: dotnet test tests/DataApi.Tests/DataApi.Tests.csproj
+
+      # ---------- Log in to ACR ----------
+      # Log in to Azure with OIDC (no client secret). The identity only has AcrPush on krconnectspractice.
+      - name: azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_ACR_PUSH_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Gives Docker (and Cosign, which reads Docker's login) a short-lived token for the registry
+      - name: docker login (ACR)
+        run: az acr login --name krconnectspractice
+
+      # Image tag = first 7 characters of the commit SHA (e.g. a1b2c3d)
+      - name: generate git sha
+        id: image_tag
+        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: docker build
+        run: docker build -t "$IMAGE:${{ steps.image_tag.outputs.tag }}" .
+
+      # Fails the job on fixable CRITICAL/HIGH vulnerabilities, so a vulnerable image is never pushed
+      - name: scan container image (Trivy)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: '${{ env.IMAGE }}:${{ steps.image_tag.outputs.tag }}'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+      - name: docker push
+        run: docker push "$IMAGE:${{ steps.image_tag.outputs.tag }}"
+
+      # After the push, Docker knows the image DIGEST: the sha256 hash of the image content.
+      # A tag can be moved to another image later; a digest never changes.
+      # RepoDigests looks like "krconnectspractice.azurecr.io/data-api@sha256:4f2a..."; we keep only the part after "@".
+      - name: get image digest
+        id: image_digest
+        run: |
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE:${{ steps.image_tag.outputs.tag }}" | cut -d'@' -f2)
+          echo "Image digest: $DIGEST"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      # ---------- Image signing with Cosign (keyless) ----------
+      # Keyless = no private key to store. Cosign uses this job's GitHub OIDC identity
+      # ("workflow aks-data-api-ci.yml in this repo, on this branch") to get a short-lived
+      # certificate from Sigstore, signs the image, and records it in a public transparency log.
+      - name: install cosign
+        uses: sigstore/cosign-installer@v3
+
+      # Always sign the DIGEST (exact content), never just the tag (tags can move).
+      # The signature is stored next to the image in ACR (uses the login above).
+      - name: sign image
+        run: cosign sign --yes "$IMAGE@${{ steps.image_digest.outputs.digest }}"
+
+      # Prove it works: verify the signature was made by THIS workflow in THIS repo.
+      - name: verify image signature
+        run: |
+          cosign verify \
+            --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/aks-data-api-ci.yml@${{ github.ref }}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "$IMAGE@${{ steps.image_digest.outputs.digest }}"
+
+      # ---------- SBOM (Software Bill of Materials) ----------
+      # Lists every package and version inside the image (OS packages + app libraries).
+      # Generated FROM the pushed image digest, in the standard SPDX JSON format.
+      # The action also uploads it as a workflow artifact (download it from the run summary).
+      - name: generate SBOM (Syft)
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.IMAGE }}@${{ steps.image_digest.outputs.digest }}
+          format: spdx-json
+          output-file: ${{ github.workspace }}/sbom.spdx.json
+
+      # Attach the SBOM to the image as a SIGNED attestation (same keyless identity as the signature).
+      # Stored next to the image in ACR (a "sha256-<digest>.att" tag).
+      - name: attest SBOM (Cosign)
+        run: cosign attest --yes --type spdxjson --predicate "$GITHUB_WORKSPACE/sbom.spdx.json" "$IMAGE@${{ steps.image_digest.outputs.digest }}"
+
+      # Prove the SBOM attestation is genuine (signed by THIS workflow). Output is large, so only show the result.
+      - name: verify SBOM attestation
+        run: |
+          cosign verify-attestation --type spdxjson \
+            --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/aks-data-api-ci.yml@${{ github.ref }}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "$IMAGE@${{ steps.image_digest.outputs.digest }}" > /dev/null
+          echo "SBOM attestation verified for data-api"
+
+  # ---------------------------------------------------------------
+  # Job 2: write the new image (tag + digest) into k8s/aks/apps/data-api.yaml and open a PR (GitOps)
+  # Runs on a NEW runner, so it checks out the code again.
+  # ---------------------------------------------------------------
+  data-api-publish:
+    needs: data-api-build-test
+    runs-on: ubuntu-24.04
+
+    # Read the tag and digest from job 1 (needs.<job-id>.outputs.<name>)
+    env:
+      IMAGE_TAG: ${{ needs.data-api-build-test.outputs.image_tag }}
+      IMAGE_DIGEST: ${{ needs.data-api-build-test.outputs.image_digest }}
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v6
+
+      # Replace the WHOLE image line (keeps its indentation), e.g.
+      #   image: krconnectspractice.azurecr.io/data-api:placeholder
+      # becomes
+      #   image: krconnectspractice.azurecr.io/data-api:a1b2c3d@sha256:4f2a...
+      # The tag is for humans (which version); the digest is what Kubernetes actually pulls.
+      # (The image contains "/", so sed uses "|" as separator.)
+      - name: Update image in the AKS manifest
+        shell: bash
+        run: |
+          FILE=k8s/aks/apps/data-api.yaml
+          NEW_IMAGE="krconnectspractice.azurecr.io/data-api:$IMAGE_TAG@$IMAGE_DIGEST"
+          sed -i -E "s|^([[:space:]]*)image:[[:space:]]*krconnectspractice\.azurecr\.io/data-api[:@].*$|\1image: $NEW_IMAGE|" "$FILE"
+          # Stop if the line was not found (otherwise the PR would silently change nothing)
+          grep -q "image: $NEW_IMAGE" "$FILE" || { echo "image line not found in $FILE"; exit 1; }
+          echo "New image line:"
+          grep -n "image:" "$FILE"
+
+      # Outside run: (with:, env:, if:) use the expression syntax ${{ env.IMAGE_TAG }}
+      # main is protected, so the new image goes in through a PR
+      - name: Create PR for AKS image update
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(aks): update data-api image to ${{ env.IMAGE_TAG }}"
+          branch: automation/aks-data-api-image-update
+          base: main
+          title: "chore(aks): update data-api image"
+          body: |
+            Automated AKS image update after successful data-api CI (ACR).
+            - Image: `krconnectspractice.azurecr.io/data-api`
+            - Tag: `${{ env.IMAGE_TAG }}`
+            - Digest: `${{ env.IMAGE_DIGEST }}`
+          add-paths: k8s/aks/apps/data-api.yaml
