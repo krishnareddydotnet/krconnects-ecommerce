@@ -10,4 +10,10 @@ describe('Footer', () => {
     // e.g. "v1.7.0": proves which release is running
     expect(screen.getByText(`· v${version}`, { exact: false })).toBeInTheDocument();
   });
+
+  it('shows release 1.10.0 (canary v2)', () => {
+    render(<Footer />);
+
+    expect(screen.getByText('· v1.10.0', { exact: false })).toBeInTheDocument();
+  });
 });
