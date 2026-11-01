@@ -1,0 +1,18 @@
+# Canary: let the Istio ingress gateway call customer-portal v2.
+# The allow-nothing baseline denies everything, and the customer-portal policy only selects v1's pods
+# (instance: customer-portal), so v2's pods (instance: customer-portal-v2) need their own ALLOW policy.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: customer-portal-v2
+  namespace: default
+spec:
+  action: ALLOW
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: customer-portal-v2
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/istio-ingress/sa/istio-ingress   # only the gateway, same as v1
