@@ -8,8 +8,8 @@ image:
   registry: "docker.io/ckreddy3030"
   # image NAME only (no registry part)
   repository: catalog-api
-  tag: "8bb45a7"
-  digest: "sha256:98ccd820119d46051f9f29b95755a26825009509eb80ac31cd6a9db8723f7d69"
+  tag: "0a56e37"
+  digest: "sha256:00e0dbab2244454ada545e863e2eda21e9aca134f88eab61c5b988d3d17f9b81"
   pullPolicy: IfNotPresent
 
 env:
