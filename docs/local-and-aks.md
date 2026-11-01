@@ -1,5 +1,8 @@
 # Run on Docker Desktop or AKS (same code, different registry)
 
+> **Note:** the Docker Hub/Helm service pipelines described here are archived in
+> `.github/workflows-archive/dockerhub/` (not run). AKS now uses plain YAML and ACR-only pipelines: see `k8s/aks/README.md`.
+
 Every service runs in two places **without code changes**:
 
 | Where | When | Images come from |
