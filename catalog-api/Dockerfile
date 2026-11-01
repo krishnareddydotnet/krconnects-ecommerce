@@ -28,7 +28,15 @@ RUN mvn clean package -DskipTests -B
 FROM eclipse-temurin:25-jre AS runtime
 WORKDIR /app
 
-COPY --from=build /src/target/catalog-api-1.0.0.jar app.jar
+# Non-root user with a fixed NUMERIC UID (10001), so Kubernetes "runAsNonRoot" can verify it.
+# No home directory and no login shell: the user only runs the app.
+RUN useradd --uid 10001 --user-group --no-create-home --shell /usr/sbin/nologin appuser
+
+# app.jar stays owned by root and read-only (0444): the app user can read and run it, but not change it
+COPY --from=build --chmod=0444 /src/target/catalog-api-1.0.0.jar app.jar
+
+# Run as the non-root user (numeric UID, not the name)
+USER 10001
 
 EXPOSE 8081
 ENTRYPOINT ["java", "-jar", "app.jar"]
