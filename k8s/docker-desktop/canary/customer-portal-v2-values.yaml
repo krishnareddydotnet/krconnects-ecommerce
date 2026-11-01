@@ -1,0 +1,13 @@
+# Canary: Helm values for customer-portal v2, installed NEXT TO v1 (v1 is managed by Argo CD).
+# Used as the LAST -f file, on top of helm/ecommerce/values-customer-portal.yaml.
+fullnameOverride: customer-portal-v2      # its own Deployment and Service: customer-portal-v2
+
+image:
+  registry: "docker.io/ckreddy3030"
+  repository: customer-portal
+  tag: "245b27a"                          # v2 image built by CI (v2 promo banner, version 1.10.0)
+  digest: "sha256:8efefed6a2452f2c5f839d2a00d52fb2e96c95248a350e5fcff70b6709bdf086"
+
+serviceAccount:
+  create: false                           # don't create a new identity...
+  name: customer-portal                   # ...reuse v1's, so the backend AuthorizationPolicies allow v2 too
