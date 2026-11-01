@@ -10,7 +10,7 @@ describe('PromoBanner', () => {
     const banner = screen.getByRole('region', { name: 'Current offer' });
     expect(banner).toBeInTheDocument();
 
-    // ...and it tells the customer about free delivery
-    expect(banner).toHaveTextContent('Free delivery on orders above ₹999');
+    // ...and it shows the v2 offer text (canary release)
+    expect(banner).toHaveTextContent('NEW: Free delivery on all orders this week - v2');
   });
 });
