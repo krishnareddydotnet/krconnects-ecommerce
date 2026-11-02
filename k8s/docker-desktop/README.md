@@ -8,12 +8,17 @@ Secrets are NOT here: create them with kubectl (see docs/local-and-aks.md).
 |---|---|
 | `istio/common/authentication/peer-authentication.yaml` | STRICT mTLS for the `default` namespace (always applied) |
 | `istio/common/authorization-policies/` | Who may call each service, zero trust (always applied) |
-| `istio/monitoring/` | Prometheus, Grafana and Kiali through the gateway: http://prometheus.localhost, http://grafana.localhost, http://kiali.localhost (always applied) |
-| `istio/scenarios/basic/` | Gateway (port 80) + VirtualService: all traffic to customer-portal |
+| `istio/monitoring/` | Prometheus, Grafana and Kiali through the gateway: https://prometheus.localhost, https://grafana.localhost, https://kiali.localhost (always applied) |
+| `istio/scenarios/basic/` | Gateway (HTTPS 443 + redirect 80) + VirtualService: all traffic to customer-portal |
 | `istio/scenarios/canary/` | Canary hands-on (to be added) |
 | `istio/scenarios/blue-green/` | Blue-green hands-on (to be added) |
 | `istio/scenarios/ab-testing/` | A/B testing hands-on (to be added) |
 | `argocd/applications.yaml` | The 6 Argo CD Applications |
+| `argocd/argocd-values.yaml` | Helm values: argocd-server insecure mode (TLS done by the gateway) |
+| `argocd/argocd-virtualservice.yaml` | https://argocd.localhost through the gateway |
+
+HTTPS for all URLs (self-signed certificate, PowerShell only, secret `krconnects-localhost-tls` in
+`istio-ingress`): `docs/docker-desktop-https.md`.
 
 ## How the Istio folder works
 
@@ -56,6 +61,7 @@ kubectl apply -f k8s/docker-desktop/istio/common/authentication/
 kubectl apply -f k8s/docker-desktop/istio/common/authorization-policies/
 kubectl apply -f k8s/docker-desktop/istio/scenarios/basic/
 kubectl apply -f k8s/docker-desktop/istio/monitoring/
+kubectl apply -f k8s/docker-desktop/argocd/argocd-virtualservice.yaml
 kubectl apply -f k8s/docker-desktop/argocd/applications.yaml
 ```
 

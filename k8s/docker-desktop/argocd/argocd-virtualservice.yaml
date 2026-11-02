@@ -1,0 +1,18 @@
+# VirtualService: https://argocd.localhost -> Argo CD UI (argocd namespace)
+# Needs argocd-server in insecure mode (argocd-values.yaml), otherwise the browser loops on redirects.
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  hosts:
+    - argocd.localhost                   # only requests with Host: argocd.localhost
+  gateways:
+    - default/krconnects-gateway         # <namespace>/<name>: the Gateway is in "default"
+  http:
+    - route:
+        - destination:
+            host: argocd-server.argocd.svc.cluster.local   # Argo CD server Service
+            port:
+              number: 80                 # HTTP port of the Service

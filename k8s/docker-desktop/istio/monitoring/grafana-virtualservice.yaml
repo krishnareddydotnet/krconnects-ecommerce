@@ -1,4 +1,4 @@
-# VirtualService: http://grafana.localhost -> Grafana UI (monitoring namespace)
+# VirtualService: https://grafana.localhost -> Grafana UI (monitoring namespace)
 apiVersion: networking.istio.io/v1
 kind: VirtualService
 metadata:
