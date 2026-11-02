@@ -6,11 +6,28 @@ Secrets are NOT here: create them with kubectl (see docs/local-and-aks.md).
 
 | Folder | What |
 |---|---|
-| `istio/peer-authentication.yaml` | STRICT mTLS for the `default` namespace |
-| `istio/gateway.yaml` | Istio ingress gateway on port 80 |
-| `istio/virtualservice.yaml` | Routes all traffic to customer-portal |
-| `istio/authorization-policies/` | Who may call each service (zero trust) |
+| `istio/common/authentication/peer-authentication.yaml` | STRICT mTLS for the `default` namespace (always applied) |
+| `istio/common/authorization-policies/` | Who may call each service, zero trust (always applied) |
+| `istio/scenarios/basic/` | Gateway (port 80) + VirtualService: all traffic to customer-portal |
+| `istio/scenarios/canary/` | Canary hands-on (to be added) |
+| `istio/scenarios/blue-green/` | Blue-green hands-on (to be added) |
+| `istio/scenarios/ab-testing/` | A/B testing hands-on (to be added) |
 | `argocd/applications.yaml` | The 6 Argo CD Applications |
+
+## How the Istio folder works
+
+- `common/` is shared by every scenario and always stays applied (mTLS and AuthorizationPolicies).
+- `scenarios/` holds self-contained labs. Only ONE scenario is active at a time:
+  delete the current one, then apply the next. Scenarios use the same object names
+  (e.g. `krconnects-gateway`), so nothing is left over.
+
+```powershell
+kubectl delete -f k8s/docker-desktop/istio/scenarios/basic/
+kubectl apply  -f k8s/docker-desktop/istio/scenarios/canary/
+```
+
+If Argo CD manages an object a scenario replaces (e.g. the order-api Deployment for canary),
+pause or remove that Argo CD Application first, otherwise self-heal puts it back.
 
 ## Who may call whom
 
@@ -30,10 +47,9 @@ Full rebuild guide: `docs/docker-desktop-setup.md`.
 ## Apply (from the repo root)
 
 ```powershell
-kubectl apply -f k8s/docker-desktop/istio/peer-authentication.yaml
-kubectl apply -f k8s/docker-desktop/istio/gateway.yaml
-kubectl apply -f k8s/docker-desktop/istio/virtualservice.yaml
-kubectl apply -f k8s/docker-desktop/istio/authorization-policies/
+kubectl apply -f k8s/docker-desktop/istio/common/authentication/
+kubectl apply -f k8s/docker-desktop/istio/common/authorization-policies/
+kubectl apply -f k8s/docker-desktop/istio/scenarios/basic/
 kubectl apply -f k8s/docker-desktop/argocd/applications.yaml
 ```
 

@@ -250,9 +250,11 @@ Istio 1.30 runs the sidecar as a native sidecar (an init container that keeps ru
 ## B4. Gateway and VirtualService
 
 ```powershell
-kubectl apply -f k8s/docker-desktop/istio/gateway.yaml
-kubectl apply -f k8s/docker-desktop/istio/virtualservice.yaml
+kubectl apply -f k8s/docker-desktop/istio/scenarios/basic/
 ```
+
+`scenarios/basic/` holds the Gateway and VirtualService (plain 100% routing). Other scenarios
+(canary, blue-green, A/B testing) live next to it; only one scenario is applied at a time.
 
 Open **http://localhost** (no port-forward needed): customer portal through the Istio gateway.
 
@@ -267,8 +269,8 @@ Open **http://localhost** (no port-forward needed): customer portal through the 
 Apply mTLS first: AuthorizationPolicies rely on the identities that mTLS provides.
 
 ```powershell
-kubectl apply -f k8s/docker-desktop/istio/peer-authentication.yaml
-kubectl apply -f k8s/docker-desktop/istio/authorization-policies/
+kubectl apply -f k8s/docker-desktop/istio/common/authentication/
+kubectl apply -f k8s/docker-desktop/istio/common/authorization-policies/
 kubectl get peerauthentication,authorizationpolicy
 ```
 
