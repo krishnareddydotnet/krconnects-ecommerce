@@ -10,8 +10,8 @@ image:
   repository: order-api
   # tag    = human-readable: which commit/version (set by CI)
   # digest = sha256 of the image content, set by CI; this is what Kubernetes actually pulls
-  tag: "0a56e37"
-  digest: "sha256:606c353279021955ee8c690c53e65afa781816d50b37a952d3b6fd3ad4abb202"
+  tag: "9467c61"
+  digest: "sha256:3778c6186b674b5a06362d8c43f13968b381d4089a3939ed39f9970a4cecf037"
   pullPolicy: IfNotPresent
 
 env:
