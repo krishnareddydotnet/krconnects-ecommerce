@@ -210,7 +210,7 @@ or use the Argo CD path with Docker Hub images instead.
 istioctl version
 ```
 
-The zip also contains `samples\addons\extras\prometheus-operator.yaml` (Istio scrape config) used in B6.
+The zip also contains `samples\addons` (Istio demo addons); this setup does not use them (see B6).
 
 ## B2. Install Istio with Helm
 
@@ -333,11 +333,10 @@ Values: Grafana login from `grafana-admin`; Prometheus keeps 7 days on a 10Gi PV
 `serviceMonitorSelectorNilUsesHelmValues: false` / `podMonitorSelectorNilUsesHelmValues: false` make Prometheus
 use monitors from every namespace (needed for the Istio monitors in `istio-system`).
 
-4. Tell Prometheus to scrape Istio (a PodMonitor for every Envoy sidecar, a ServiceMonitor for istiod).
-   The Istio download contains them:
+4. Tell Prometheus to scrape Istio (a PodMonitor for every Envoy sidecar, a ServiceMonitor for istiod):
 
 ```powershell
-kubectl apply -f C:\tools\istio-1.30.7\samples\addons\extras\prometheus-operator.yaml
+kubectl apply -f k8s/docker-desktop/monitoring/istio-monitors.yaml
 kubectl get podmonitor,servicemonitor -n istio-system   # envoy-stats-monitor, istio-component-monitor
 ```
 
