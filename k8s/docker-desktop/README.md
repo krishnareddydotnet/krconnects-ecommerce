@@ -8,6 +8,7 @@ Secrets are NOT here: create them with kubectl (see docs/local-and-aks.md).
 |---|---|
 | `istio/common/authentication/peer-authentication.yaml` | STRICT mTLS for the `default` namespace (always applied) |
 | `istio/common/authorization-policies/` | Who may call each service, zero trust (always applied) |
+| `istio/monitoring/` | Prometheus, Grafana and Kiali through the gateway: http://prometheus.localhost, http://grafana.localhost, http://kiali.localhost (always applied) |
 | `istio/scenarios/basic/` | Gateway (port 80) + VirtualService: all traffic to customer-portal |
 | `istio/scenarios/canary/` | Canary hands-on (to be added) |
 | `istio/scenarios/blue-green/` | Blue-green hands-on (to be added) |
@@ -17,6 +18,10 @@ Secrets are NOT here: create them with kubectl (see docs/local-and-aks.md).
 ## How the Istio folder works
 
 - `common/` is shared by every scenario and always stays applied (mTLS and AuthorizationPolicies).
+- `monitoring/` also always stays applied: one VirtualService per tool, all on the same Gateway and port 80.
+  Istio picks the app by the Host header (exact host beats the shop's `"*"`). Chrome/Edge resolve
+  `*.localhost` to 127.0.0.1, so no hosts-file change is needed. On a real cluster these tools belong on an
+  internal gateway, never the public one (Prometheus has no login).
 - `scenarios/` holds self-contained labs. Only ONE scenario is active at a time:
   delete the current one, then apply the next. Scenarios use the same object names
   (e.g. `krconnects-gateway`), so nothing is left over.
@@ -50,6 +55,7 @@ Full rebuild guide: `docs/docker-desktop-setup.md`.
 kubectl apply -f k8s/docker-desktop/istio/common/authentication/
 kubectl apply -f k8s/docker-desktop/istio/common/authorization-policies/
 kubectl apply -f k8s/docker-desktop/istio/scenarios/basic/
+kubectl apply -f k8s/docker-desktop/istio/monitoring/
 kubectl apply -f k8s/docker-desktop/argocd/applications.yaml
 ```
 

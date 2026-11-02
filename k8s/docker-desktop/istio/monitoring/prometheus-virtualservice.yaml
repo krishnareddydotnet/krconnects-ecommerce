@@ -1,0 +1,17 @@
+# VirtualService: http://prometheus.localhost -> Prometheus UI (monitoring namespace)
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  hosts:
+    - prometheus.localhost           # only requests with Host: prometheus.localhost
+  gateways:
+    - default/krconnects-gateway         # <namespace>/<name>: the Gateway is in "default"
+  http:
+    - route:
+        - destination:
+            host: kube-prometheus-stack-prometheus.monitoring.svc.cluster.local
+            port:
+              number: 9090               # Prometheus Service port

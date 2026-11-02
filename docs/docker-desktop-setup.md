@@ -301,6 +301,37 @@ istioctl dashboard kiali
 
 Kiali shows the live service graph, traffic and mTLS locks.
 
+### B6.1 Open Prometheus, Grafana and Kiali through the gateway (no port-forward)
+
+Prometheus and Grafana here are the kube-prometheus-stack in the `monitoring` namespace; Kiali is in `istio-system`.
+One VirtualService per tool, all on the existing `krconnects-gateway` (port 80, `hosts: "*"`, so the Gateway
+needs no change):
+
+```powershell
+kubectl apply -f k8s/docker-desktop/istio/monitoring/
+kubectl get virtualservice -A
+```
+
+| URL | Goes to (Service : port) |
+|---|---|
+| http://prometheus.localhost | `kube-prometheus-stack-prometheus.monitoring` : 9090 |
+| http://grafana.localhost | `kube-prometheus-stack-grafana.monitoring` : 80 |
+| http://kiali.localhost | `kiali.istio-system` : 20001 |
+
+How it works: Chrome/Edge resolve `*.localhost` to 127.0.0.1, so every URL reaches the same gateway on port 80.
+The browser sends the name in the `Host` header and Istio picks the VirtualService with that exact host;
+an exact host wins over the shop's `"*"`, so http://localhost still opens customer-portal.
+
+Grafana login: user and password are in the `grafana-admin` secret:
+
+```powershell
+kubectl get secret grafana-admin -n monitoring -o jsonpath="{.data.admin-user}" | ForEach-Object { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($_)) }
+kubectl get secret grafana-admin -n monitoring -o jsonpath="{.data.admin-password}" | ForEach-Object { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($_)) }
+```
+
+If a page does not load, check the Service name and port: `kubectl get svc -n monitoring` / `-n istio-system`.
+Production: these tools go on an internal gateway (private IP), never the public one; Prometheus has no login.
+
 ---
 
 # Part C: troubleshooting
