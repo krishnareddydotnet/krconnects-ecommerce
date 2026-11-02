@@ -8,8 +8,8 @@ image:
   registry: "docker.io/ckreddy3030"
   # image NAME only (no registry part)
   repository: auth-api
-  tag: "0a56e37"
-  digest: "sha256:8fef9ebf0cea9fea7978f8b7ff9823d8cd83a2911ebcdbb14ac1bb9b10937a98"
+  tag: "9467c61"
+  digest: "sha256:0b11d1fe3e611630da99162387d89f9c18ee68872a348d0710ac7d111e657fe2"
   pullPolicy: IfNotPresent
 
 env:
