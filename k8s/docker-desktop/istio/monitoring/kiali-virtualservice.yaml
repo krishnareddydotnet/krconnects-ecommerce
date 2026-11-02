@@ -1,0 +1,17 @@
+# VirtualService: http://kiali.localhost -> Kiali UI (istio-system namespace)
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: kiali
+  namespace: istio-system
+spec:
+  hosts:
+    - kiali.localhost                # only requests with Host: kiali.localhost
+  gateways:
+    - default/krconnects-gateway         # <namespace>/<name>: the Gateway is in "default"
+  http:
+    - route:
+        - destination:
+            host: kiali.istio-system.svc.cluster.local
+            port:
+              number: 20001              # Kiali Service port
