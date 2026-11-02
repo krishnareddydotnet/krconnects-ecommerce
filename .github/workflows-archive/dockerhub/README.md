@@ -1,12 +1,9 @@
-# Archived: Docker Hub service pipelines
+# Docker Hub service pipelines (currently ACTIVE)
 
-These 7 workflows built each service and pushed the image to Docker Hub (or ACR, with the variable `IMAGE_REGISTRY`),
-then updated `helm/ecommerce/values-<service>.yaml` through a bot PR.
+The 7 Docker Hub pipelines (`<service>-ci.yml`) are **currently active** in `.github/workflows/`.
+They push each image to Docker Hub (or ACR, with the repository variable `IMAGE_REGISTRY`) and update
+`helm/ecommerce/values-<service>.yaml` through a bot PR (used on Docker Desktop with Helm).
 
-They are **archived, not deleted**: GitHub only runs workflows in `.github/workflows/`, so nothing here runs.
-They are kept as learning material and to go back to Docker Hub + Helm (Docker Desktop) later:
-move a file back to `.github/workflows/` to run it again.
-
-The active pipelines are now `.github/workflows/aks-<service>-ci.yml`: they push to ACR
-(`krconnectspractice.azurecr.io`) and update `k8s/aks/apps/<service>.yaml` (see `k8s/aks/README.md`).
-notification-service has no AKS pipeline yet.
+This folder holds them only while the AKS pipelines are active. Only one set may be active, because both watch
+the same service folders. The AKS pipelines are archived in `.github/workflows-archive/aks/`;
+its README shows how to switch.
