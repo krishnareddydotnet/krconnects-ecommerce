@@ -1,0 +1,7 @@
+# Helm values for Kiali (kiali-server chart) on Docker Desktop
+#   helm install kiali-server kiali/kiali-server -n istio-system --version 2.33.0 -f k8s/docker-desktop/monitoring/kiali-values.yaml
+auth:
+  strategy: anonymous                  # no login (local laptop only; use OpenID/Entra ID on a real cluster)
+external_services:
+  prometheus:
+    url: http://kube-prometheus-stack-prometheus.monitoring:9090   # read Istio metrics from kube-prometheus-stack

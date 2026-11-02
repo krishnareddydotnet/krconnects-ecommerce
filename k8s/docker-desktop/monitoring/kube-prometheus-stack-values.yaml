@@ -1,0 +1,33 @@
+# Helm values for kube-prometheus-stack (Prometheus + Grafana + Alertmanager) on Docker Desktop
+#   helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack -n monitoring --version 92.13.1 -f k8s/docker-desktop/monitoring/kube-prometheus-stack-values.yaml
+grafana:
+  admin:
+    existingSecret: grafana-admin      # login from this secret (create it BEFORE installing); no password in Git
+    userKey: admin-user
+    passwordKey: admin-password
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+prometheus:
+  prometheusSpec:
+    # Pick up ServiceMonitors/PodMonitors from ANY namespace and with any labels
+    # (default: only those labelled for this Helm release). Needed for the Istio monitors in istio-system.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    retention: 7d                      # keep metrics for 7 days
+    resources:
+      requests:
+        cpu: 200m
+        memory: 1Gi
+      limits:
+        memory: 2Gi
+    storageSpec:                       # metrics survive Prometheus pod restarts (PVC on Docker Desktop's local disk)
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
