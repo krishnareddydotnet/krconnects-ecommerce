@@ -1,0 +1,80 @@
+# Tell Prometheus (kube-prometheus-stack) how to scrape Istio. Same content as Istio's
+# samples/addons/extras/prometheus-operator.yaml, exported from the running cluster.
+# Prometheus only reads monitors from other namespaces because of
+# serviceMonitorSelectorNilUsesHelmValues / podMonitorSelectorNilUsesHelmValues: false (kube-prometheus-stack-values.yaml).
+#
+#   kubectl apply -f k8s/docker-desktop/monitoring/istio-monitors.yaml
+
+# PodMonitor: scrape the Envoy sidecar of EVERY meshed pod (istio_requests_total, latency, bytes ...)
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: envoy-stats-monitor
+  namespace: istio-system
+  labels:
+    monitoring: istio-proxies
+    release: istio
+spec:
+  jobLabel: envoy-stats
+  namespaceSelector:
+    any: true                          # pods in all namespaces
+  selector:
+    matchExpressions:
+      - key: istio-prometheus-ignore   # opt out: label a pod istio-prometheus-ignore to skip it
+        operator: DoesNotExist
+  podMetricsEndpoints:
+    - path: /stats/prometheus          # Envoy's metrics endpoint
+      interval: 15s                    # scrape every 15 seconds
+      relabelings:
+        # only the istio-proxy container (not the app container)
+        - action: keep
+          sourceLabels: [__meta_kubernetes_pod_container_name]
+          regex: istio-proxy
+        # only pods that have the prometheus.io/scrape annotation (Istio adds it on injection)
+        - action: keep
+          sourceLabels: [__meta_kubernetes_pod_annotationpresent_prometheus_io_scrape]
+        # scrape address = pod IP + prometheus.io/port annotation (IPv6 form)
+        - action: replace
+          sourceLabels: [__meta_kubernetes_pod_annotation_prometheus_io_port, __meta_kubernetes_pod_ip]
+          regex: (\d+);(([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4})
+          replacement: '[$2]:$1'
+          targetLabel: __address__
+        # scrape address = pod IP + prometheus.io/port annotation (IPv4 form)
+        - action: replace
+          sourceLabels: [__meta_kubernetes_pod_annotation_prometheus_io_port, __meta_kubernetes_pod_ip]
+          regex: (\d+);((([0-9]+?)(\.|$)){4})
+          replacement: $2:$1
+          targetLabel: __address__
+        # drop all pod labels (keeps metrics small)
+        - action: labeldrop
+          regex: __meta_kubernetes_pod_label_(.+)
+        # add namespace and pod labels to every metric
+        - action: replace
+          sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - action: replace
+          sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+---
+# ServiceMonitor: scrape istiod (control plane metrics: config pushes, sidecar connections ...)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: istio-component-monitor
+  namespace: istio-system
+  labels:
+    monitoring: istio-components
+    release: istio
+spec:
+  jobLabel: istio
+  targetLabels: [app]
+  namespaceSelector:
+    any: true
+  selector:
+    matchExpressions:
+      - key: istio                     # the istiod Service has label istio=pilot
+        operator: In
+        values: [pilot]
+  endpoints:
+    - port: http-monitoring            # istiod metrics port (15014)
+      interval: 15s
