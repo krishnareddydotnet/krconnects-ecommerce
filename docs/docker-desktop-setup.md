@@ -210,7 +210,7 @@ or use the Argo CD path with Docker Hub images instead.
 istioctl version
 ```
 
-The zip also contains `samples\addons` (Prometheus, Kiali, Grafana, Jaeger YAML) used in B6.
+The zip also contains `samples\addons\extras\prometheus-operator.yaml` (Istio scrape config) used in B6.
 
 ## B2. Install Istio with Helm
 
@@ -291,15 +291,70 @@ Re-test: http://localhost (browse, log in, place an order) and the admin portal 
 Adding a new service: add its service account to the policy of every service it calls, and add a policy for
 the new service listing who may call it.
 
-## B6. Optional: Kiali and Prometheus
+## B6. Monitoring: Prometheus, Grafana and Kiali
 
-```powershell
-kubectl apply -f C:\tools\istio-1.30.7\samples\addons\prometheus.yaml
-kubectl apply -f C:\tools\istio-1.30.7\samples\addons\kiali.yaml
-istioctl dashboard kiali
+Installed with Helm (versions pinned), values files in `k8s/docker-desktop/monitoring/`:
+
+| Helm release | Chart (version) | Namespace | What |
+|---|---|---|---|
+| kube-prometheus-stack | prometheus-community/kube-prometheus-stack (92.13.1) | monitoring | Prometheus, Grafana, Alertmanager, node-exporter, kube-state-metrics |
+| kiali-server | kiali/kiali-server (2.33.0) | istio-system | Kiali service graph, reads metrics from kube-prometheus-stack |
+
+```
+Envoy sidecars --(PodMonitor envoy-stats-monitor)--+
+istiod --------(ServiceMonitor istio-component-monitor)--> Prometheus --> Grafana dashboards
+                                                                  \--> Kiali graph
 ```
 
-Kiali shows the live service graph, traffic and mTLS locks.
+1. Helm repositories:
+
+```powershell
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo add kiali https://kiali.org/helm-charts
+helm repo update
+```
+
+2. Grafana admin login as a secret BEFORE the install (the values file points to it; no password in Git).
+   Choose your own password:
+
+```powershell
+kubectl create namespace monitoring
+kubectl create secret generic grafana-admin -n monitoring --from-literal=admin-user=admin --from-literal=admin-password=ChooseAStrongPassword
+```
+
+3. kube-prometheus-stack:
+
+```powershell
+helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack -n monitoring --version 92.13.1 -f k8s/docker-desktop/monitoring/kube-prometheus-stack-values.yaml
+kubectl get pods -n monitoring           # wait until all are Running
+```
+
+Values: Grafana login from `grafana-admin`; Prometheus keeps 7 days on a 10Gi PVC; and
+`serviceMonitorSelectorNilUsesHelmValues: false` / `podMonitorSelectorNilUsesHelmValues: false` make Prometheus
+use monitors from every namespace (needed for the Istio monitors in `istio-system`).
+
+4. Tell Prometheus to scrape Istio (a PodMonitor for every Envoy sidecar, a ServiceMonitor for istiod).
+   The Istio download contains them:
+
+```powershell
+kubectl apply -f C:\tools\istio-1.30.7\samples\addons\extras\prometheus-operator.yaml
+kubectl get podmonitor,servicemonitor -n istio-system   # envoy-stats-monitor, istio-component-monitor
+```
+
+Check in Prometheus (https://prometheus.localhost): query `istio_requests_total` returns data after some traffic.
+
+5. Kiali:
+
+```powershell
+helm install kiali-server kiali/kiali-server -n istio-system --version 2.33.0 -f k8s/docker-desktop/monitoring/kiali-values.yaml
+kubectl get pods -n istio-system         # kiali-... Running
+```
+
+Values: anonymous login (laptop only) and the Prometheus URL of kube-prometheus-stack.
+Kiali serves under `/kiali` (https://kiali.localhost redirects there).
+
+Do NOT use `samples\addons\prometheus.yaml` / `kiali.yaml` (Istio's demo addons) together with this setup:
+they would install a second Prometheus in `istio-system`.
 
 ### B6.1 Open Prometheus, Grafana and Kiali through the gateway (no port-forward)
 

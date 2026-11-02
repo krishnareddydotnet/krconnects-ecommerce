@@ -13,6 +13,8 @@ Secrets are NOT here: create them with kubectl (see docs/local-and-aks.md).
 | `istio/scenarios/canary/` | Canary hands-on (to be added) |
 | `istio/scenarios/blue-green/` | Blue-green hands-on (to be added) |
 | `istio/scenarios/ab-testing/` | A/B testing hands-on (to be added) |
+| `monitoring/kube-prometheus-stack-values.yaml` | Helm values: Prometheus (7d, 10Gi), Grafana (login from secret `grafana-admin`) |
+| `monitoring/kiali-values.yaml` | Helm values: Kiali (anonymous, reads kube-prometheus-stack) |
 | `argocd/applications.yaml` | The 6 Argo CD Applications |
 | `argocd/argocd-values.yaml` | Helm values: argocd-server insecure mode (TLS done by the gateway) |
 | `argocd/argocd-virtualservice.yaml` | https://argocd.localhost through the gateway |
