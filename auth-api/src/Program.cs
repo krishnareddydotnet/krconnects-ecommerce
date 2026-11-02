@@ -25,6 +25,9 @@ builder.Services.AddSingleton<IAuthInfoService, AuthInfoService>();
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
 builder.Services.AddSingleton<JwtTokenService>();
 
+// ----- Roles: who is an admin (env var Admin__Usernames, comma-separated) -----
+builder.Services.AddSingleton<AdminRoleService>();
+
 // ----- Data API client -----
 // Address of the Data API: env var DataApi__Url, default = Kubernetes Service name
 string dataApiUrl = builder.Configuration["DataApi:Url"] ?? "http://data-api:8080";

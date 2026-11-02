@@ -1,0 +1,50 @@
+# CODEOWNERS for krconnects-ecommerce
+#
+# Who must review changes to which files.
+# GitHub automatically requests a review from the owner when a PR changes a matching path.
+#
+# Rules:
+#   - Format:  <path pattern>  <owner(s)>
+#   - The LAST matching line wins, so the general rule goes first and specific rules go below it.
+#   - Owners are GitHub users (@user) or, in an organization, teams (@org/team-name).
+#
+# This is a personal repo, so every owner is @krishnareddydotnet.
+# The comment above each block shows the team that would own it in an enterprise organization.
+
+# ---------------------------------------------------------------
+# Default owner: anything not matched below
+# Enterprise: @krconnects/platform-team
+# ---------------------------------------------------------------
+*                               @krishnareddydotnet
+
+# ---------------------------------------------------------------
+# Application services (each service team owns its own code)
+# ---------------------------------------------------------------
+# Enterprise: @krconnects/dotnet-team
+/auth-api/                      @krishnareddydotnet
+/data-api/                      @krishnareddydotnet
+
+# Enterprise: @krconnects/java-team
+/catalog-api/                   @krishnareddydotnet
+
+# Enterprise: @krconnects/frontend-team
+/customer-portal/               @krishnareddydotnet
+
+# ---------------------------------------------------------------
+# Deployment and pipelines (platform / DevSecOps team)
+# A change here can deploy to production or leak secrets, so it needs an expert review.
+# Enterprise: @krconnects/devsecops-team
+# ---------------------------------------------------------------
+/helm/                          @krishnareddydotnet
+/.github/workflows/             @krishnareddydotnet
+
+# ---------------------------------------------------------------
+# Security-sensitive files (security team)
+# Nobody can quietly allow-list a secret, weaken the pre-commit hook
+# or change who owns what without a security review.
+# Enterprise: @krconnects/security-team
+# ---------------------------------------------------------------
+/.gitleaksignore                @krishnareddydotnet
+/.pre-commit-config.yaml        @krishnareddydotnet
+/.github/CODEOWNERS             @krishnareddydotnet
+/docs/runbooks/                 @krishnareddydotnet

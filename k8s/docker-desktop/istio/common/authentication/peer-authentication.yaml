@@ -1,0 +1,12 @@
+# Mutual TLS (mTLS) for every pod in the "default" namespace.
+# STRICT = pods only accept encrypted traffic from other mesh pods (with a sidecar).
+# It also gives every pod a verified identity (its service account), which the
+# AuthorizationPolicies use to decide who may call whom.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: default
+spec:
+  mtls:
+    mode: STRICT

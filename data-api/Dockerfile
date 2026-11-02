@@ -1,5 +1,18 @@
 # -----------------------------------------------------------------------
 # KRConnects Data API - multi-stage Dockerfile
+#
+# Tech stack : .NET 10, ASP.NET Core Web API, EF Core 10 (Azure SQL)
+# Port       : 8080
+# Runs as    : app (UID 1654, $APP_UID of the .NET image)
+# Stages     : 1) build   (mcr.microsoft.com/dotnet/sdk:10.0) -> dotnet restore, dotnet publish -c Release
+#              2) runtime (mcr.microsoft.com/dotnet/aspnet:10.0) -> runs DataApi.dll
+#
+# Local commands (run from the data-api folder):
+#   Build image : docker build -t data-api:v1.0.0 .
+#   Run         : docker run --rm -p 8080:8080 -e ConnectionStrings__DataDb="<your-azure-sql-connection-string>" data-api:v1.0.0
+#                 (needs a reachable Azure SQL: data-api checks the database at startup)
+#   Test        : curl http://localhost:8080/health/live
+#   Unit tests  : dotnet test tests/DataApi.Tests/DataApi.Tests.csproj
 # -----------------------------------------------------------------------
 
 # Stage 1: Build

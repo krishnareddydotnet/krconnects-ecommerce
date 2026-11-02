@@ -1,0 +1,55 @@
+# -----------------------------------------------------------------------
+# KEDA autoscaling for notification-service (NOT applied automatically).
+#
+# Why KEDA and not a normal HPA?
+#   A normal Horizontal Pod Autoscaler scales on CPU or memory. A worker that
+#   waits for messages uses almost no CPU, even when 10,000 messages are
+#   waiting. KEDA looks at the NUMBER OF WAITING MESSAGES in the Service Bus
+#   subscription and adds pods when work piles up.
+#
+# Apply it yourself after the steps in docs/service-bus-setup.md:
+#   kubectl apply -f notification-service/deploy/keda-scaledobject.yaml
+# Replace every <placeholder> first.
+# -----------------------------------------------------------------------
+
+# TriggerAuthentication = HOW KEDA logs in to Azure to read the message count.
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: notification-service-servicebus-auth
+  namespace: default                     # same namespace as the Deployment
+spec:
+  podIdentity:
+    # Microsoft Entra Workload Identity: no secrets, no connection strings.
+    # NOTE: the token is requested by the KEDA OPERATOR pod, not by our pod.
+    # So the managed identity needs a federated credential for KEDA's own
+    # ServiceAccount (see docs/service-bus-setup.md, step 5).
+    provider: azure-workload
+    # Client ID of the managed identity KEDA should use. We use the
+    # notification-service identity. Not a secret, but specific to your subscription.
+    identityId: "<notification-service-identity-client-id>"
+---
+# ScaledObject = WHAT to scale and WHEN.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: notification-service
+  namespace: default
+spec:
+  scaleTargetRef:
+    name: notification-service           # the Deployment created by Helm (fullnameOverride)
+  minReplicaCount: 1                     # always keep 1 pod, so a new order is handled right away
+  maxReplicaCount: 5                     # never more than 5 pods
+  pollingInterval: 30                    # check the message count every 30 seconds
+  cooldownPeriod: 300                    # wait 5 minutes of low traffic before scaling down
+  triggers:
+    - type: azure-servicebus
+      metadata:
+        namespace: "<your-namespace>"            # namespace NAME only, without ".servicebus.windows.net"
+        topicName: orders
+        subscriptionName: notification-service
+        # Target: about 5 waiting messages per pod.
+        # 20 waiting -> 4 pods, 50 waiting -> 5 pods (max).
+        messageCount: "5"
+      authenticationRef:
+        name: notification-service-servicebus-auth   # the TriggerAuthentication above

@@ -1,0 +1,42 @@
+# -----------------------------------------------------------------------
+# SecretProviderClass "data-api-kv": Azure SQL connection string for data-api
+#
+# How it works:
+#   1. A pod mounts a CSI volume that names this SecretProviderClass (data-api).
+#   2. The Secrets Store CSI driver (AKS add-on "azure-keyvault-secrets-provider") logs in to Azure
+#      with Workload Identity (the pod's ServiceAccount -> managed identity), no passwords or keys.
+#   3. It reads the secret from Key Vault and writes it as a file into the pod (read-only).
+#   4. secretObjects below ALSO copy it into a normal Kubernetes Secret, so the app can use it as an env var.
+#      That Secret only exists while at least one pod mounts this volume.
+#
+# Apply BEFORE the apps:  kubectl apply -f k8s/aks/key-vault/data-api-kv.yaml
+# No secret VALUES here: only names and IDs (IDs are identifiers, not secrets).
+# -----------------------------------------------------------------------
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: data-api-kv                   # referenced by the pods' CSI volume (volumeAttributes.secretProviderClass)
+  namespace: default               # must be the same namespace as the pods that use it
+spec:
+  provider: azure                  # Azure Key Vault provider
+  parameters:
+    usePodIdentity: "false"        # do not use the old (deprecated) AAD Pod Identity
+    useVMManagedIdentity: "false"  # do not use the node's identity: each pod logs in with its own ServiceAccount
+    clientID: "b49007d2-b04a-453e-938a-4980fc2e66c4"   # managed identity used through Workload Identity (needs e.g. role "Key Vault Secrets User")
+    keyvaultName: "kv-krconnects-practice"             # Key Vault name (not the full URL)
+    tenantId: "6a316c36-70c2-4533-895e-030164f7f49b"   # Microsoft Entra tenant of the Key Vault
+    cloudName: ""                  # empty = Azure public cloud
+    # Which Key Vault secrets to fetch. Each one becomes a file /mnt/secrets-store/<objectName> in the pod.
+    objects: |
+      array:
+        - |
+          objectName: data-db-connection   # name of the secret in Key Vault
+          objectType: secret       # secret (not key or certificate)
+          objectVersion: ""        # empty = always the latest version
+  # Copy the fetched secret into a Kubernetes Secret, for env vars (secretKeyRef) in the Deployments
+  secretObjects:
+    - secretName: data-api-secret       # Kubernetes Secret that is created
+      type: Opaque                  # normal key/value Secret
+      data:
+        - objectName: data-db-connection   # take the value of this Key Vault secret (same name as in "objects")
+          key: ConnectionStrings__DataDb   # ...and store it under this key (the env var name the app reads)

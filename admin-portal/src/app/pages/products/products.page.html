@@ -1,0 +1,122 @@
+<div class="toolbar">
+  <h1>Products</h1>
+  <button type="button" class="btn btn-primary" (click)="openAdd()">Add product</button>
+</div>
+
+<form class="search" [formGroup]="searchForm" (ngSubmit)="applySearch()">
+  <label class="visually-hidden" for="search">Search products</label>
+  <input id="search" type="search" placeholder="Search by name or category" formControlName="text" />
+  <button type="submit" class="btn">Search</button>
+</form>
+
+@if (notice()) {
+  <p class="message success" role="status">{{ notice() }}</p>
+}
+@if (error()) {
+  <p class="message error" role="alert">{{ error() }}</p>
+}
+
+<!-- ----- Add / Edit form ----- -->
+@if (formMode() !== 'closed') {
+  <section class="card" aria-labelledby="form-title">
+    <h2 id="form-title">{{ formMode() === 'add' ? 'Add product' : 'Edit product' }}</h2>
+
+    <form [formGroup]="form" (ngSubmit)="save()" novalidate class="product-form">
+      <label for="name">Name</label>
+      <input id="name" formControlName="name" />
+      @if (showError('name')) {
+        <p class="field-error">Name is required (2 to 100 characters).</p>
+      }
+
+      <label for="category">Category</label>
+      <input id="category" formControlName="category" />
+      @if (showError('category')) {
+        <p class="field-error">Category is required (2 to 50 characters).</p>
+      }
+
+      <label for="price">Price (₹)</label>
+      <input id="price" type="number" step="0.01" formControlName="price" />
+      @if (showError('price')) {
+        <p class="field-error">Price must be more than ₹0 and less than ₹10,00,000.</p>
+      }
+
+      <label for="imageUrl">Image path (optional)</label>
+      <input id="imageUrl" formControlName="imageUrl" placeholder="products/my-product.webp" />
+      @if (showError('imageUrl')) {
+        <p class="field-error">Use a relative path like products/my-product.webp (no full URL).</p>
+      }
+
+      @if (formError()) {
+        <p class="message error" role="alert">{{ formError() }}</p>
+      }
+
+      <div class="actions">
+        <button type="submit" class="btn btn-primary" [disabled]="saving()">
+          {{ saving() ? 'Saving…' : 'Save' }}
+        </button>
+        <button type="button" class="btn" (click)="closeForm()">Cancel</button>
+      </div>
+    </form>
+  </section>
+}
+
+<!-- ----- Delete confirmation ----- -->
+@if (confirmDelete(); as product) {
+  <section class="card confirm" role="alertdialog" aria-labelledby="confirm-title">
+    <h2 id="confirm-title">Delete "{{ product.name }}"?</h2>
+    <p>This can't be undone. Existing orders keep their copy of the name and price.</p>
+    <div class="actions">
+      <button type="button" class="btn btn-danger" (click)="deleteConfirmed()">Yes, delete</button>
+      <button type="button" class="btn" (click)="cancelDelete()">Cancel</button>
+    </div>
+  </section>
+}
+
+<!-- ----- Table ----- -->
+@if (loading() && !data()) {
+  <p class="muted">Loading products…</p>
+}
+
+@if (data(); as result) {
+  <p class="muted">{{ result.totalCount }} products</p>
+
+  @if (result.items.length === 0) {
+    <p class="empty">No products found.</p>
+  } @else {
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">ID</th>
+          <th scope="col">Name</th>
+          <th scope="col">Category</th>
+          <th scope="col" class="number">Price</th>
+          <th scope="col"><span class="visually-hidden">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (product of result.items; track product.id) {
+          <tr>
+            <td>{{ product.id }}</td>
+            <td>{{ product.name }}</td>
+            <td>{{ product.category }}</td>
+            <td class="number">{{ formatPrice(product.price) }}</td>
+            <td>
+              <div class="row-actions">
+                <button type="button" class="btn btn-small" (click)="openEdit(product)">Edit</button>
+                <button type="button" class="btn btn-small btn-danger" (click)="askDelete(product)">Delete</button>
+              </div>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+
+  <nav class="pager" aria-label="Pages">
+    <button type="button" class="btn" [disabled]="page() <= 1 || loading()" (click)="goToPage(page() - 1)">Previous</button>
+    <span>Page {{ result.page }} of {{ result.totalPages || 1 }}</span>
+    <button type="button" class="btn" [disabled]="page() >= result.totalPages || loading()" (click)="goToPage(page() + 1)">
+      Next
+    </button>
+  </nav>
+}

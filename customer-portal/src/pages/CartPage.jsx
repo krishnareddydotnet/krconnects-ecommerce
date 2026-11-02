@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatPrice } from '../utils/productUtils.js';
 import { FREE_DELIVERY_THRESHOLD, MAX_QUANTITY, getCartLines, getCartSummary } from '../utils/cartUtils.js';
@@ -7,6 +8,18 @@ import ProductImage from '../components/ProductImage.jsx';
 function CartPage({ cartItems, currentUser, onQuantityChange, onRemove, onLoginClick, onPlaceOrder }) {
   const lines = getCartLines(cartItems);
   const summary = getCartSummary(lines);
+
+  // true while the order is being sent, so a double click can't place it twice
+  const [placing, setPlacing] = useState(false);
+
+  async function handlePlaceOrderClick() {
+    setPlacing(true);
+    try {
+      await onPlaceOrder(lines);
+    } finally {
+      setPlacing(false);
+    }
+  }
 
   // ----- Empty cart -----
   if (lines.length === 0) {
@@ -78,8 +91,8 @@ function CartPage({ cartItems, currentUser, onQuantityChange, onRemove, onLoginC
 
           {/* Must be logged in to place an order */}
           {currentUser ? (
-            <button type="button" className="btn btn-primary summary-btn" onClick={() => onPlaceOrder(lines, summary)}>
-              Place order
+            <button type="button" className="btn btn-primary summary-btn" disabled={placing} onClick={handlePlaceOrderClick}>
+              {placing ? 'Placing order…' : 'Place order'}
             </button>
           ) : (
             <button type="button" className="btn btn-primary summary-btn" onClick={onLoginClick}>

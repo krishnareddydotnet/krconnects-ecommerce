@@ -1,0 +1,18 @@
+# Entry point from outside the cluster: the Istio ingress gateway listens on port 80.
+# "istio: ingress" selects the ingress gateway pods installed with Istio on Docker Desktop
+# (on AKS the managed gateway has a different label: istio: aks-istio-ingressgateway-external).
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: krconnects-gateway
+  namespace: default
+spec:
+  selector:
+    istio: ingress
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "*"                 # any host name (we use http://localhost)

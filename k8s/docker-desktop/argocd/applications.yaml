@@ -1,0 +1,137 @@
+# Argo CD Application: data-api (deploys helm/ecommerce with values-data-api.yaml from main)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: data-api
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/krishnareddydotnet/krconnects-ecommerce.git
+    targetRevision: main
+    path: helm/ecommerce
+    helm:
+      valueFiles:
+        - values-data-api.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true        # remove resources that were deleted from Git
+      selfHeal: true     # undo manual changes made in the cluster
+---
+# Argo CD Application: auth-api (deploys helm/ecommerce with values-auth-api.yaml from main)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: auth-api
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/krishnareddydotnet/krconnects-ecommerce.git
+    targetRevision: main
+    path: helm/ecommerce
+    helm:
+      valueFiles:
+        - values-auth-api.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true        # remove resources that were deleted from Git
+      selfHeal: true     # undo manual changes made in the cluster
+---
+# Argo CD Application: catalog-api (deploys helm/ecommerce with values-catalog-api.yaml from main)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: catalog-api
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/krishnareddydotnet/krconnects-ecommerce.git
+    targetRevision: main
+    path: helm/ecommerce
+    helm:
+      valueFiles:
+        - values-catalog-api.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true        # remove resources that were deleted from Git
+      selfHeal: true     # undo manual changes made in the cluster
+---
+# Argo CD Application: order-api (deploys helm/ecommerce with values-order-api.yaml from main)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: order-api
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/krishnareddydotnet/krconnects-ecommerce.git
+    targetRevision: main
+    path: helm/ecommerce
+    helm:
+      valueFiles:
+        - values-order-api.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true        # remove resources that were deleted from Git
+      selfHeal: true     # undo manual changes made in the cluster
+---
+# Argo CD Application: customer-portal (deploys helm/ecommerce with values-customer-portal.yaml from main)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: customer-portal
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/krishnareddydotnet/krconnects-ecommerce.git
+    targetRevision: main
+    path: helm/ecommerce
+    helm:
+      valueFiles:
+        - values-customer-portal.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true        # remove resources that were deleted from Git
+      selfHeal: true     # undo manual changes made in the cluster
+---
+# Argo CD Application: admin-portal (deploys helm/ecommerce with values-admin-portal.yaml from main)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: admin-portal
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/krishnareddydotnet/krconnects-ecommerce.git
+    targetRevision: main
+    path: helm/ecommerce
+    helm:
+      valueFiles:
+        - values-admin-portal.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true        # remove resources that were deleted from Git
+      selfHeal: true     # undo manual changes made in the cluster

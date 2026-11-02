@@ -1,0 +1,21 @@
+<header class="header">
+  <div class="container header-inner">
+    <span class="brand">KRConnects <strong>Admin</strong></span>
+
+    <!-- Menu and user only for a logged-in admin -->
+    @if (auth.currentUser(); as user) {
+      <nav class="menu" aria-label="Main">
+        <a routerLink="/products" routerLinkActive="active">Products</a>
+        <a routerLink="/orders" routerLinkActive="active">Orders</a>
+      </nav>
+      <div class="user">
+        <span>{{ user.username }}</span>
+        <button type="button" class="btn btn-small" (click)="logout()">Log out</button>
+      </div>
+    }
+  </div>
+</header>
+
+<main class="container">
+  <router-outlet />
+</main>

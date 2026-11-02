@@ -1,0 +1,35 @@
+# kube-prometheus-stack - KRConnects lab settings
+# Only the settings we change; everything else uses the chart defaults.
+
+grafana:
+  admin:
+    existingSecret: grafana-admin     # password comes from the Secret, not this file
+    userKey: admin-user
+    passwordKey: admin-password
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+prometheus:
+  prometheusSpec:
+    retention: 7d                     # keep 7 days of metrics
+    # Pick up ServiceMonitors from ANY Helm release (needed later for our app metrics)
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    resources:
+      requests:
+        cpu: 200m
+        memory: 1Gi
+      limits:
+        memory: 2Gi
+    # Store metrics on a disk (PVC) so they survive pod restarts
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi

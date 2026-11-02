@@ -1,0 +1,163 @@
+# -----------------------------------------------------------------------
+# customer-portal on AKS: the shop website; nginx forwards /api, /catalog-api, /order-api
+#
+# Tech stack : React 19 + Vite 8, served by nginx (nginx-unprivileged)
+# Port       : 8080
+# Runs as    : UID 101 (nginx user of the nginx-unprivileged image)
+# Objects    : ServiceAccount, Deployment, Service, HorizontalPodAutoscaler, PodDisruptionBudget, NetworkPolicy
+#
+# Apply      : kubectl apply -f k8s/aks/apps/customer-portal.yaml
+# -----------------------------------------------------------------------
+
+# ServiceAccount: the identity of the pod inside Kubernetes.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: customer-portal
+  namespace: default
+# No Kubernetes API token in the pod: the app never calls the Kubernetes API.
+automountServiceAccountToken: false
+---
+# Deployment: runs and updates the pods.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer-portal
+  namespace: default
+  labels:
+    app.kubernetes.io/name: customer-portal
+spec:
+  replicas: 2                    # 2 pods, so one can be down (update, node drain) without an outage; the HPA adds more
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: customer-portal   # which pods belong to this Deployment
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0           # never remove an old pod before a new one is ready (zero downtime)
+      maxSurge: 1                 # start one extra pod at a time during an update
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: customer-portal   # must match the selector above (also used by Service, PDB, NetworkPolicy)
+    spec:
+      serviceAccountName: customer-portal
+      automountServiceAccountToken: false
+      securityContext:            # pod level: applies to every container
+        runAsNonRoot: true        # Kubernetes refuses to start the pod if it would run as root (UID 0)
+        runAsUser: 101           # nginx user of the nginx-unprivileged image
+        seccompProfile:
+          type: RuntimeDefault    # block risky Linux system calls (container runtime default list)
+      containers:
+        - name: customer-portal
+          # CI replaces this whole line with <image>:<tag>@<digest> (bot PR). Do not edit it by hand.
+          image: krconnectspractice.azurecr.io/customer-portal:2b831d3@sha256:4a422c74ae716a9e9ecbe178f0144672117ec1e42b3aa3ddc37788656e7091e4
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:        # container level
+            allowPrivilegeEscalation: false   # a process can never gain more privileges than it started with
+            readOnlyRootFilesystem: true      # nobody can change files in the image; writable paths are volumes below
+            capabilities:
+              drop: ["ALL"]       # remove all extra Linux privileges
+          resources:
+            requests:             # reserved for the pod: used for scheduling and as the 100% base for the HPA
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              memory: 64Mi      # the pod is restarted (OOMKilled) above this; no CPU limit, so no throttling
+          livenessProbe:          # restart the container if this fails (process hung)
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:         # send traffic only while this succeeds (answered by nginx itself (nginx.conf))
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            # nginx-unprivileged writes its pid file and proxy/body temp files to /tmp (it fails to start without it)
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi     # empty folder per pod, deleted with the pod
+---
+# Service: one stable name and IP (customer-portal:8080) in front of the pods.
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer-portal
+  namespace: default
+  labels:
+    app.kubernetes.io/name: customer-portal
+spec:
+  type: ClusterIP                # internal only; users come in through the Istio ingress gateway
+  selector:
+    app.kubernetes.io/name: customer-portal   # send traffic to the pods with this label
+  ports:
+    - name: http                 # Istio uses the port name to detect the protocol
+      port: 8080
+      targetPort: 8080
+---
+# HorizontalPodAutoscaler: adds pods when CPU is busy, removes them when it is quiet.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: customer-portal
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: customer-portal
+  minReplicas: 2                 # same as the Deployment, so there are always 2 pods
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70   # target: 70% of the CPU request (25m) on average
+---
+# PodDisruptionBudget: during voluntary disruptions (node upgrade, drain) keep at least 1 pod running.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: customer-portal
+  namespace: default
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: customer-portal
+---
+# NetworkPolicy: which pods may CONNECT to this service (ingress = incoming traffic).
+# Everything not listed below is blocked on the way in.
+# Egress (outgoing) is not restricted yet: that is a later step (it must allow DNS, Azure SQL on 1433, istiod).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: customer-portal
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: customer-portal   # the pods this policy protects
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Only the managed Istio ingress gateway (all pods in namespace aks-istio-ingress)
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: aks-istio-ingress   # label Kubernetes sets on every namespace
+      ports:
+        - protocol: TCP
+          port: 8080               # only the app port

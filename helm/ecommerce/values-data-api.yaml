@@ -1,0 +1,34 @@
+# data-api: .NET Web API (internal only, port 8080)
+
+fullnameOverride: data-api   # must match nginx.conf: http://data-api:8080
+
+image:
+  # Registry the CI pushed the current image to (CI updates this line, like tag and digest).
+  # Override it with an extra -f registries/<name>.yaml (the last -f wins).
+  registry: "docker.io/ckreddy3030"
+  # image NAME only (no registry part)
+  repository: data-api
+  tag: "9467c61"
+  digest: "sha256:630e64f9bfc43052b4e473635c89f2696cc9521647a61b138109d9436b9a823b"
+  pullPolicy: IfNotPresent
+
+env:
+  - name: ConnectionStrings__DataDb
+    valueFrom:
+      secretKeyRef:
+        name: data-api-secret
+        key: ConnectionStrings__DataDb
+
+service:
+  type: ClusterIP      # internal only
+  port: 8080
+
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: http
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: http

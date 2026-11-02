@@ -1,0 +1,46 @@
+# catalog-api: Java Spring Boot API (internal only, port 8081)
+
+fullnameOverride: catalog-api   # must match nginx.conf: http://catalog-api:8081
+
+image:
+  # Registry the CI pushed the current image to (CI updates this line, like tag and digest).
+  # Override it with an extra -f registries/<name>.yaml (the last -f wins).
+  registry: "docker.io/ckreddy3030"
+  # image NAME only (no registry part)
+  repository: catalog-api
+  tag: "9467c61"
+  digest: "sha256:dfddcf6a19ea7138ff4f8c3c11fcedc65422166d14d01eae87f64082daab09d3"
+  pullPolicy: IfNotPresent
+
+env:
+  # Base URL for product images. The database stores only the path
+  # (e.g. products/wireless-mouse.webp); catalog-api adds this base.
+  # Later with Front Door: "https://www.krconnects.com/images/"
+  - name: IMAGES_BASE_URL
+    value: "https://stkrcimagesdevcin001.blob.core.windows.net/"
+  # Secret used to CHECK login tokens on /admin/** (admin product endpoints).
+  # Same Secret and key as auth-api, because a token must be checked with the key it was signed with.
+  - name: Jwt__Key
+    valueFrom:
+      secretKeyRef:
+        name: auth-api-secret
+        key: Jwt__Key
+
+service:
+  type: ClusterIP
+  port: 8081
+
+# Spring Boot Actuator health endpoints.
+# Java starts slowly, so wait before the first check
+# (otherwise Kubernetes restarts the pod before it is ready).
+livenessProbe:
+  httpGet:
+    path: /actuator/health/liveness
+    port: http
+  initialDelaySeconds: 30
+
+readinessProbe:
+  httpGet:
+    path: /actuator/health/readiness
+    port: http
+  initialDelaySeconds: 20

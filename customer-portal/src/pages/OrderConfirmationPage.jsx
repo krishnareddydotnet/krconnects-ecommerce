@@ -2,8 +2,8 @@ import { Link } from 'react-router-dom';
 import { formatPrice } from '../utils/productUtils.js';
 
 // OrderConfirmationPage ( URL: /order-confirmation )
-// DEMO ONLY: there is no order-api yet, so the order is not saved anywhere.
-// Later: "Place order" -> POST /order-api/orders, and this page shows the saved order.
+// Shows the order as SAVED by the Order API: the order number, prices and
+// totals come from the server's response, not from the browser's cart.
 function OrderConfirmationPage({ order }) {
   // Opened directly or after a refresh: we don't have the order any more
   if (!order) {
@@ -20,17 +20,17 @@ function OrderConfirmationPage({ order }) {
       <div className="confirmation-icon" aria-hidden="true">✓</div>
       <h1>Thank you, {order.username}!</h1>
       <p className="confirmation-number">Order number <strong>{order.orderNumber}</strong></p>
-      <p className="summary-hint">Demo order: not saved yet (order-api is coming next).</p>
 
       <ul className="confirmation-list">
-        {order.lines.map(({ product, quantity, lineTotal }) => (
-          <li key={product.id}>
-            <span>{quantity} × {product.name}</span>
-            <span>{formatPrice(lineTotal)}</span>
+        {order.items.map((item) => (
+          <li key={item.productId}>
+            <span>{item.quantity} × {item.productName}</span>
+            <span>{formatPrice(item.lineTotal)}</span>
           </li>
         ))}
-        <li><span>Delivery</span><span>{order.summary.delivery === 0 ? 'Free' : formatPrice(order.summary.delivery)}</span></li>
-        <li className="summary-total"><span>Total paid</span><span>{formatPrice(order.summary.total)}</span></li>
+        <li><span>Subtotal</span><span>{formatPrice(order.subtotal)}</span></li>
+        <li><span>Delivery</span><span>{order.delivery === 0 ? 'Free' : formatPrice(order.delivery)}</span></li>
+        <li className="summary-total"><span>Total paid</span><span>{formatPrice(order.total)}</span></li>
       </ul>
 
       <Link to="/" className="btn btn-primary btn-link">Continue shopping</Link>

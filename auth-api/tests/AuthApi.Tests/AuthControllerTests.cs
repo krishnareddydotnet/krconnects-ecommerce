@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Xunit;
 
 namespace AuthApi.Tests;
@@ -32,7 +33,8 @@ public class AuthControllerTests : IClassFixture<WebApplicationFactory<Program>>
     // Creates an HttpClient for auth-api where:
     //  - Jwt:Key is the test key
     //  - every call to the Data API goes to our fake handler
-    private HttpClient CreateClient(FakeDataApiHandler fakeDataApi)
+    //  - Admin:Usernames is the given list (default: nobody is an admin)
+    private HttpClient CreateClient(FakeDataApiHandler fakeDataApi, string adminUsernames = "")
     {
         return _factory.WithWebHostBuilder(builder =>
         {
@@ -40,7 +42,8 @@ public class AuthControllerTests : IClassFixture<WebApplicationFactory<Program>>
             {
                 config.AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    ["Jwt:Key"] = TestJwtKey
+                    ["Jwt:Key"] = TestJwtKey,
+                    ["Admin:Usernames"] = adminUsernames
                 });
             });
 
@@ -158,6 +161,60 @@ public class AuthControllerTests : IClassFixture<WebApplicationFactory<Program>>
         var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    // ----- Roles -----
+
+    [Fact]
+    public async Task Login_UserNotInAdminList_TokenHasRoleCustomer()
+    {
+        var client = CreateClient(new FakeDataApiHandler(), adminUsernames: "someone-else");
+
+        string token = await LoginAndGetToken(client);
+
+        Assert.Equal("customer", new JsonWebToken(token).GetClaim("role").Value);
+    }
+
+    [Fact]
+    public async Task Login_UserInAdminList_TokenHasRoleAdmin()
+    {
+        // Case and spaces don't matter: " Krishna " matches "krishna"
+        var client = CreateClient(new FakeDataApiHandler(), adminUsernames: "boss, Krishna ");
+
+        string token = await LoginAndGetToken(client);
+
+        Assert.Equal("admin", new JsonWebToken(token).GetClaim("role").Value);
+    }
+
+    [Fact]
+    public async Task Me_ReturnsRole()
+    {
+        var client = CreateClient(new FakeDataApiHandler(), adminUsernames: "krishna");
+        string token = await LoginAndGetToken(client);
+
+        var request = new HttpRequestMessage(HttpMethod.Get, "/auth/me");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var response = await client.SendAsync(request);
+        var me = await response.Content.ReadFromJsonAsync<MeResult>();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("krishna", me!.Username);
+        Assert.Equal("admin", me.Role);
+    }
+
+    private static async Task<string> LoginAndGetToken(HttpClient client)
+    {
+        var response = await client.PostAsJsonAsync("/auth/login", new { username = "krishna", userKey = KrishnaKey.ToString() });
+        var login = await response.Content.ReadFromJsonAsync<LoginResult>();
+        return login!.Token;
+    }
+
+    // Shape of the /auth/me response, for reading it in tests
+    private class MeResult
+    {
+        public int Id { get; set; }
+        public string Username { get; set; } = "";
+        public string Role { get; set; } = "";
     }
 
     // Shape of the /auth/login response, for reading it in tests

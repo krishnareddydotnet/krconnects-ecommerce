@@ -2,6 +2,7 @@ package com.krconnects.catalog.service;
 
 import com.krconnects.catalog.model.PagedProducts;
 import com.krconnects.catalog.model.Product;
+import com.krconnects.catalog.model.ProductRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -87,6 +88,42 @@ public class DataApiClient {
                 .uri("/products/categories")
                 .retrieve()
                 .body(new ParameterizedTypeReference<List<String>>() {});
+    }
+
+    // ----- Admin: create / update / delete (catalog-api checks the admin token first) -----
+
+    /**
+     * POST {dataApiUrl}/products  ->  the created product (201).
+     */
+    public Product createProduct(ProductRequest request) {
+        return restClient.post()
+                .uri("/products")
+                .body(request)
+                .retrieve()
+                .body(Product.class);
+    }
+
+    /**
+     * PUT {dataApiUrl}/products/{id}  ->  204.
+     * Throws HttpClientErrorException.NotFound if the id does not exist.
+     */
+    public void updateProduct(int id, ProductRequest request) {
+        restClient.put()
+                .uri("/products/{id}", id)
+                .body(request)
+                .retrieve()
+                .toBodilessEntity();
+    }
+
+    /**
+     * DELETE {dataApiUrl}/products/{id}  ->  204.
+     * Throws HttpClientErrorException.NotFound if the id does not exist.
+     */
+    public void deleteProduct(int id) {
+        restClient.delete()
+                .uri("/products/{id}", id)
+                .retrieve()
+                .toBodilessEntity();
     }
 
     // "" or null -> not sent as a query parameter

@@ -1,0 +1,201 @@
+# -----------------------------------------------------------------------
+# catalog-api on AKS: product list/details, admin product endpoints
+#
+# Tech stack : Java 25, Spring Boot 4.1
+# Port       : 8081
+# Runs as    : UID 10001 (user created in the catalog-api Dockerfile)
+# Objects    : ServiceAccount, Deployment, Service, HorizontalPodAutoscaler, PodDisruptionBudget, NetworkPolicy
+# Secrets    : from Azure Key Vault via SecretProviderClass "jwt-key-kv" (k8s/aks/key-vault/jwt-key-kv.yaml)
+#
+# Apply      : kubectl apply -f k8s/aks/apps/catalog-api.yaml
+# -----------------------------------------------------------------------
+
+# ServiceAccount: the identity of the pod inside Kubernetes.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: catalog-api
+  namespace: default
+  annotations:
+    # Workload Identity: this ServiceAccount may log in to Azure as this managed identity (client ID, not a secret).
+    # The identity has a federated credential for "system:serviceaccount:default:catalog-api" and can read Key Vault secrets.
+    azure.workload.identity/client-id: "b49007d2-b04a-453e-938a-4980fc2e66c4"
+# No Kubernetes API token in the pod: the app never calls the Kubernetes API.
+automountServiceAccountToken: false
+---
+# Deployment: runs and updates the pods.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog-api
+  namespace: default
+  labels:
+    app.kubernetes.io/name: catalog-api
+spec:
+  replicas: 2                    # 2 pods, so one can be down (update, node drain) without an outage; the HPA adds more
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: catalog-api   # which pods belong to this Deployment
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0           # never remove an old pod before a new one is ready (zero downtime)
+      maxSurge: 1                 # start one extra pod at a time during an update
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: catalog-api   # must match the selector above (also used by Service, PDB, NetworkPolicy)
+        azure.workload.identity/use: "true"   # Workload Identity webhook injects the Azure token into this pod
+    spec:
+      serviceAccountName: catalog-api
+      automountServiceAccountToken: false
+      securityContext:            # pod level: applies to every container
+        runAsNonRoot: true        # Kubernetes refuses to start the pod if it would run as root (UID 0)
+        runAsUser: 10001           # user created in the catalog-api Dockerfile
+        seccompProfile:
+          type: RuntimeDefault    # block risky Linux system calls (container runtime default list)
+      containers:
+        - name: catalog-api
+          # CI replaces this whole line with <image>:<tag>@<digest> (bot PR). Do not edit it by hand.
+          image: krconnectspractice.azurecr.io/catalog-api:2b831d3@sha256:1361a608e56514a3023566f8e9202329dd753911dad8202f65257e8c4fddade1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8081
+          securityContext:        # container level
+            allowPrivilegeEscalation: false   # a process can never gain more privileges than it started with
+            readOnlyRootFilesystem: true      # nobody can change files in the image; writable paths are volumes below
+            capabilities:
+              drop: ["ALL"]       # remove all extra Linux privileges
+          env:
+            # base URL of product images (Blob Storage); the database stores only the path
+            - name: IMAGES_BASE_URL
+              value: "https://stkrcimagesdevcin001.blob.core.windows.net/"
+            # key that CHECKS login tokens on /admin/** (same key auth-api signs with)
+            - name: Jwt__Key
+              valueFrom:
+                secretKeyRef:
+                  name: auth-api-secret       # Kubernetes Secret created by the Key Vault CSI driver (secretObjects)
+                  key: Jwt__Key
+          resources:
+            requests:             # reserved for the pod: used for scheduling and as the 100% base for the HPA
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 768Mi      # Java needs more memory (heap + JVM); the pod is restarted (OOMKilled) above this
+          # Java starts slowly: liveness and readiness only begin after the startupProbe succeeded.
+          # Up to 30 x 5s = 150 seconds to start before Kubernetes restarts the container.
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:          # restart the container if this fails (process hung)
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:         # send traffic only while this succeeds (Spring Boot Actuator readiness group)
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            # Tomcat (embedded web server) needs /tmp: without it the app fails with "Unable to create tempDir"
+            - name: tmp
+              mountPath: /tmp
+            # Key Vault secrets as files (read-only). Mounting this volume is ALSO what makes the CSI driver
+            # create/refresh the Kubernetes Secret used in env above: no mount = no synced Secret.
+            - name: secrets-store
+              mountPath: /mnt/secrets-store
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 128Mi     # empty folder per pod, deleted with the pod
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io   # Azure Key Vault provider for the Secrets Store CSI driver (AKS add-on)
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: jwt-key-kv   # which Key Vault secrets to fetch (k8s/aks/key-vault/jwt-key-kv.yaml)
+---
+# Service: one stable name and IP (catalog-api:8081) in front of the pods.
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-api
+  namespace: default
+  labels:
+    app.kubernetes.io/name: catalog-api
+spec:
+  type: ClusterIP                # internal only; users come in through the Istio ingress gateway
+  selector:
+    app.kubernetes.io/name: catalog-api   # send traffic to the pods with this label
+  ports:
+    - name: http                 # Istio uses the port name to detect the protocol
+      port: 8081
+      targetPort: 8081
+---
+# HorizontalPodAutoscaler: adds pods when CPU is busy, removes them when it is quiet.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: catalog-api
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: catalog-api
+  minReplicas: 2                 # same as the Deployment, so there are always 2 pods
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70   # target: 70% of the CPU request (250m) on average
+---
+# PodDisruptionBudget: during voluntary disruptions (node upgrade, drain) keep at least 1 pod running.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: catalog-api
+  namespace: default
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: catalog-api
+---
+# NetworkPolicy: which pods may CONNECT to this service (ingress = incoming traffic).
+# Everything not listed below is blocked on the way in.
+# Egress (outgoing) is not restricted yet: that is a later step (it must allow DNS, Azure SQL on 1433, istiod).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: catalog-api
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: catalog-api   # the pods this policy protects
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Only these services (pods in the same namespace with these labels)
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: customer-portal
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: admin-portal
+      ports:
+        - protocol: TCP
+          port: 8081               # only the app port

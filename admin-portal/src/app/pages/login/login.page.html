@@ -1,0 +1,30 @@
+<section class="card login">
+  <h1>Admin login</h1>
+  <p class="muted">Log in with your username and user key.</p>
+
+  @if (expired) {
+    <p class="message info">Your session has expired. Please log in again.</p>
+  }
+
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <label for="username">Username</label>
+    <input id="username" formControlName="username" autocomplete="username" />
+    @if (form.controls.username.touched && form.controls.username.invalid) {
+      <p class="field-error">Username is required.</p>
+    }
+
+    <label for="userKey">User key</label>
+    <input id="userKey" type="password" formControlName="userKey" autocomplete="current-password" />
+    @if (form.controls.userKey.touched && form.controls.userKey.invalid) {
+      <p class="field-error">User key is required.</p>
+    }
+
+    @if (error()) {
+      <p class="message error" role="alert">{{ error() }}</p>
+    }
+
+    <button type="submit" class="btn btn-primary" [disabled]="loading()">
+      {{ loading() ? 'Logging in…' : 'Log in' }}
+    </button>
+  </form>
+</section>

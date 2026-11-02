@@ -1,0 +1,85 @@
+/* KRConnects admin portal: simple styles, same colours as the customer portal. No UI library. */
+
+:root {
+  --accent: #3730a3;
+  --accent-dark: #1e1b4b;
+  --accent-soft: #eef2ff;
+  --text: #111827;
+  --muted: #4b5563;
+  --border: #e5e7eb;
+  --bg-soft: #f9fafb;
+  --success: #15803d;
+  --danger: #b91c1c;
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+  color: var(--text);
+  background: var(--bg-soft);
+}
+button, input, select { font: inherit; }
+h1 { font-size: 1.6rem; margin: 0; }
+h2 { font-size: 1.2rem; margin-top: 0; }
+.container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+.muted { color: var(--muted); }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+/* ---------- Header ---------- */
+.header { background: var(--accent-dark); color: #fff; margin-bottom: 24px; }
+.header-inner { display: flex; align-items: center; gap: 24px; min-height: 60px; }
+.brand { font-size: 1.1rem; }
+.menu { display: flex; gap: 16px; flex: 1; }
+.menu a { color: #c7d2fe; text-decoration: none; padding: 6px 2px; }
+.menu a.active { color: #fff; border-bottom: 2px solid #fff; }
+.user { display: flex; align-items: center; gap: 12px; }
+
+/* ---------- Buttons ---------- */
+.btn {
+  height: 40px; padding: 0 16px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: #fff; color: var(--text);
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-danger { color: var(--danger); border-color: #fecaca; }
+.btn-small { height: 32px; padding: 0 12px; font-size: 0.9rem; }
+
+/* ---------- Layout pieces ---------- */
+.toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.search { display: flex; gap: 8px; margin-bottom: 16px; }
+.search input { flex: 1; }
+.card {
+  background: #fff; border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px; margin-bottom: 16px;
+}
+.login { max-width: 420px; margin: 40px auto; }
+.actions { display: flex; gap: 8px; margin-top: 16px; }
+.empty { padding: 24px; text-align: center; color: var(--muted); }
+.pager { display: flex; gap: 12px; align-items: center; justify-content: center; margin: 16px 0 32px; }
+
+/* ---------- Forms ---------- */
+label { display: block; font-weight: 600; margin: 12px 0 4px; }
+input, select {
+  height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: #fff;
+}
+form input { width: 100%; }
+.search input { width: auto; }
+.field-error { color: var(--danger); margin: 4px 0 0; font-size: 0.9rem; }
+
+/* ---------- Messages ---------- */
+.message { padding: 10px 14px; border-radius: 8px; margin: 12px 0; }
+.message.error { background: #fef2f2; color: var(--danger); }
+.message.success { background: #f0fdf4; color: var(--success); }
+.message.info { background: var(--accent-soft); color: var(--accent-dark); }
+
+/* ---------- Tables ---------- */
+table { width: 100%; border-collapse: collapse; background: #fff; border-radius: var(--radius); overflow: hidden; }
+th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; }
+th { background: var(--accent-soft); font-weight: 600; }
+td.number, th.number { text-align: right; }
+.row-actions { display: flex; gap: 8px; justify-content: flex-end; }

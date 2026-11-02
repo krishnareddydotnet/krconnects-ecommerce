@@ -1,0 +1,19 @@
+# catalog-api: products, called by both portals' nginx.
+# ALLOW policy = only the callers listed below may call this service; everyone else is denied.
+# Callers are identified by their service account (verified through mTLS).
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: catalog-api
+  namespace: default
+spec:
+  action: ALLOW
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: catalog-api
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/default/sa/customer-portal          # product pages
+              - cluster.local/ns/default/sa/admin-portal             # product management

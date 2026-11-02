@@ -105,14 +105,60 @@ describe('CartPage', () => {
     expect(await screen.findByRole('button', { name: 'Log in to place your order' })).toBeInTheDocument();
   });
 
-  it('logged-in user places a (demo) order and the cart is emptied', async () => {
+  it('logged-in user places an order: saved order is shown and the cart is emptied', async () => {
     localStorage.setItem('krconnects_token', 'test-token');
+    renderWithCart('/cart', { 1: 1, 4: 2 });   // 1599 + 2 x 499 = 2597
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Place order' }));
+
+    expect(await screen.findByRole('heading', { name: 'Thank you, krishna!' })).toBeInTheDocument();
+    // order number and totals come from the Order API response
+    expect(screen.getByText('KRC-20261031-TEST01')).toBeInTheDocument();
+    expect(screen.getByText('2 × Clean Code')).toBeInTheDocument();
+    expect(screen.getAllByText('₹2,597.00').length).toBe(2);   // subtotal + total paid
+    expect(screen.getByRole('link', { name: 'Cart, 0 items' })).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem('krconnects_cart'))).toEqual({});
+  });
+
+  it('sends only productId + quantity, with the login token', async () => {
+    localStorage.setItem('krconnects_token', 'test-token');
+    renderWithCart('/cart', { 1: 3 });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Place order' }));
+    await screen.findByRole('heading', { name: 'Thank you, krishna!' });
+
+    const [url, options] = global.fetch.mock.calls.find(([u]) => u === '/order-api/orders');
+    expect(url).toBe('/order-api/orders');
+    expect(options.method).toBe('POST');
+    expect(options.headers.Authorization).toBe('Bearer test-token');
+    expect(JSON.parse(options.body)).toEqual({ items: [{ productId: 1, quantity: 3 }] });   // no prices
+  });
+
+  it('shows a friendly message and keeps the cart when the order fails', async () => {
+    localStorage.setItem('krconnects_token', 'test-token');
+    global.fetch = vi.fn((url, options) => url === '/order-api/orders'
+      ? Promise.resolve({ ok: false, status: 503, json: async () => ({ message: 'down' }) })
+      : fakeFetch(url, options));
     renderWithCart('/cart', { 1: 1 });
 
     fireEvent.click(await screen.findByRole('button', { name: 'Place order' }));
 
-    expect(screen.getByRole('heading', { name: 'Thank you, krishna!' })).toBeInTheDocument();
-    expect(screen.getByText(/Order number/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Cart, 0 items' })).toBeInTheDocument();
+    expect(await screen.findByText('Sorry, we could not place your order. Please try again.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Your cart' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Cart, 1 items' })).toBeInTheDocument();
+  });
+
+  it('asks to log in again when the login has expired (401)', async () => {
+    localStorage.setItem('krconnects_token', 'test-token');
+    global.fetch = vi.fn((url, options) => url === '/order-api/orders'
+      ? Promise.resolve({ ok: false, status: 401, json: async () => ({}) })
+      : fakeFetch(url, options));
+    renderWithCart('/cart', { 1: 1 });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Place order' }));
+
+    expect(await screen.findByText('Your session has expired. Please log in again.')).toBeInTheDocument();
+    expect(localStorage.getItem('krconnects_token')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Cart, 1 items' })).toBeInTheDocument();   // cart kept
   });
 });

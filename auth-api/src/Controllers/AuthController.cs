@@ -11,7 +11,7 @@ namespace AuthApi.Controllers;
 /// Sign up, log in, and "who am I".
 ///   POST /auth/signup   { username }            -> 201 { username, userKey }  | 409 already exists
 ///   POST /auth/login    { username, userKey }   -> 200 { token, username, expiresAt } | 401
-///   GET  /auth/me       (Authorization: Bearer <token>) -> 200 { id, username } | 401
+///   GET  /auth/me       (Authorization: Bearer <token>) -> 200 { id, username, role } | 401
 ///
 /// Browser calls /api/auth/...  ->  nginx forwards to http://auth-api:8080/auth/...
 /// </summary>
@@ -21,12 +21,14 @@ public class AuthController : ControllerBase
 {
     private readonly DataApiClient _dataApi;
     private readonly JwtTokenService _jwt;
+    private readonly AdminRoleService _roles;
     private readonly ILogger<AuthController> _logger;
 
-    public AuthController(DataApiClient dataApi, JwtTokenService jwt, ILogger<AuthController> logger)
+    public AuthController(DataApiClient dataApi, JwtTokenService jwt, AdminRoleService roles, ILogger<AuthController> logger)
     {
         _dataApi = dataApi;
         _jwt = jwt;
+        _roles = roles;
         _logger = logger;
     }
 
@@ -102,8 +104,11 @@ public class AuthController : ControllerBase
 
         var user = await response.Content.ReadFromJsonAsync<DataApiUser>();
 
-        // Username + key are correct: give the browser a signed token
-        LoginResponse login = _jwt.CreateToken(user!.Id, user.Username);
+        // Username + key are correct: give the browser a signed token.
+        // The role ("admin" or "customer") goes INTO the token, so other services
+        // can check it without asking auth-api.
+        string role = _roles.GetRole(user!.Username);
+        LoginResponse login = _jwt.CreateToken(user.Id, user.Username, role);
         return Ok(login);
     }
 
@@ -117,7 +122,10 @@ public class AuthController : ControllerBase
         string? id = User.FindFirst("sub")?.Value;
         string? username = User.FindFirst("name")?.Value;
 
-        return Ok(new MeResponse { Id = int.Parse(id ?? "0"), Username = username ?? "" });
+        // Tokens created before roles existed have no "role" claim: treat as customer
+        string role = User.FindFirst("role")?.Value ?? AdminRoleService.CustomerRole;
+
+        return Ok(new MeResponse { Id = int.Parse(id ?? "0"), Username = username ?? "", Role = role });
     }
 
     // Same message for "wrong username" and "wrong key", so attackers can't

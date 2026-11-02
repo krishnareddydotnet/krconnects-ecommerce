@@ -1,0 +1,28 @@
+# customer-portal: React UI served by nginx (non-root, port 8080)
+
+# Fixed name, so the Deployment and Service are called "customer-portal"
+fullnameOverride: customer-portal
+
+image:
+  # Registry the CI pushed the current image to (CI updates this line, like tag and digest).
+  # Override it with an extra -f registries/<name>.yaml (the last -f wins).
+  registry: "docker.io/ckreddy3030"
+  # image NAME only (no registry part)
+  repository: customer-portal
+  tag: "57b4dd1"
+  digest: "sha256:ef75248d9be750751a0248a5b9a3570ce002f75e7471f5481f35726b9c185e64"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP   # internal only; users reach it through the Istio ingress gateway
+  port: 8080           # also used as the containerPort by the chart
+
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: http
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: http
