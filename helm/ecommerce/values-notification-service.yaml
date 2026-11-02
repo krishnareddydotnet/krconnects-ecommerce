@@ -11,8 +11,8 @@ image:
   repository: notification-service
   # tag    = human-readable: which commit/version (set by CI)
   # digest = sha256 of the image content, set by CI; this is what Kubernetes actually pulls
-  tag: "0a56e37"
-  digest: "sha256:af7fd77d5bef2aff09335b1d5bc85e9196e9d50db714a8c28ee73e5c5bd213a1"
+  tag: "9467c61"
+  digest: "sha256:ac29c66bf9605e5ef58140f5ac0b6646e14575d8fd724c10ce7d26703bb0ab01"
   pullPolicy: IfNotPresent
 
 env:
