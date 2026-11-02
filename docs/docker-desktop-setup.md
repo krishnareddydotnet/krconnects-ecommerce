@@ -314,13 +314,13 @@ kubectl get virtualservice -A
 
 | URL | Goes to (Service : port) |
 |---|---|
-| http://prometheus.localhost | `kube-prometheus-stack-prometheus.monitoring` : 9090 |
-| http://grafana.localhost | `kube-prometheus-stack-grafana.monitoring` : 80 |
-| http://kiali.localhost | `kiali.istio-system` : 20001 |
+| https://prometheus.localhost | `kube-prometheus-stack-prometheus.monitoring` : 9090 |
+| https://grafana.localhost | `kube-prometheus-stack-grafana.monitoring` : 80 |
+| https://kiali.localhost | `kiali.istio-system` : 20001 |
 
 How it works: Chrome/Edge resolve `*.localhost` to 127.0.0.1, so every URL reaches the same gateway on port 80.
 The browser sends the name in the `Host` header and Istio picks the VirtualService with that exact host;
-an exact host wins over the shop's `"*"`, so http://localhost still opens customer-portal.
+an exact host wins over the shop's `"*"`, so https://localhost still opens customer-portal.
 
 Grafana login: user and password are in the `grafana-admin` secret:
 
@@ -331,6 +331,12 @@ kubectl get secret grafana-admin -n monitoring -o jsonpath="{.data.admin-passwor
 
 If a page does not load, check the Service name and port: `kubectl get svc -n monitoring` / `-n istio-system`.
 Production: these tools go on an internal gateway (private IP), never the public one; Prometheus has no login.
+
+### B6.2 HTTPS for all UIs and Argo CD through the gateway
+
+All URLs above, the shop and Argo CD (https://argocd.localhost) run over HTTPS with a self-signed
+certificate created with PowerShell 7; `http://` redirects to `https://`.
+Full steps (certificate, TLS secret, Gateway on 443, Argo CD insecure mode): **docs/docker-desktop-https.md**.
 
 ---
 

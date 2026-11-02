@@ -1,4 +1,4 @@
-# VirtualService: http://kiali.localhost -> Kiali UI (istio-system namespace)
+# VirtualService: https://kiali.localhost -> Kiali UI (istio-system namespace)
 apiVersion: networking.istio.io/v1
 kind: VirtualService
 metadata:

@@ -1,6 +1,8 @@
-# Entry point from outside the cluster: the Istio ingress gateway listens on port 80.
+# Entry point from outside the cluster: the Istio ingress gateway.
+# Port 443: HTTPS with our localhost certificate. Port 80: redirects every request to HTTPS.
 # "istio: ingress" selects the ingress gateway pods installed with Istio on Docker Desktop
 # (on AKS the managed gateway has a different label: istio: aks-istio-ingressgateway-external).
+# Certificate setup: docs/docker-desktop-https.md
 apiVersion: networking.istio.io/v1
 kind: Gateway
 metadata:
@@ -10,9 +12,22 @@ spec:
   selector:
     istio: ingress
   servers:
+    # HTTPS: the gateway decrypts TLS here, then sends plain HTTP into the mesh (mTLS between sidecars)
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      tls:
+        mode: SIMPLE                              # normal one-way TLS (browser checks the gateway's certificate)
+        credentialName: krconnects-localhost-tls  # TLS secret in the gateway pod's namespace (istio-ingress)
+      hosts:
+        - "*"                                     # localhost, argocd/grafana/prometheus/kiali.localhost
+    # HTTP: no content served, only a redirect to the same URL on https://
     - port:
         number: 80
         name: http
         protocol: HTTP
+      tls:
+        httpsRedirect: true                       # reply 301 -> https://
       hosts:
-        - "*"                 # any host name (we use http://localhost)
+        - "*"

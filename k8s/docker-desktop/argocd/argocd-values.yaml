@@ -1,0 +1,5 @@
+# Helm values for Argo CD on Docker Desktop
+#   helm upgrade argocd argo/argo-cd -n argocd --version <current chart version> -f k8s/docker-desktop/argocd/argocd-values.yaml
+configs:
+  params:
+    server.insecure: true   # argocd-server serves plain HTTP; TLS is done by the Istio gateway (https://argocd.localhost)
