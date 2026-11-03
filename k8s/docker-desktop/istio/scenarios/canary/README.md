@@ -132,3 +132,7 @@ Argo CD then recreates the Helm Deployment, Service and ServiceAccount `customer
 Do not re-apply `applications.yaml` WHILE the canary app exists: the Helm Deployment would run next to the Rollout.
 
 Apply only one scenario at a time.
+
+## Backlog
+
+- AnalysisTemplate: Prometheus success-rate check (istio_requests_total) so Rollouts promotes or aborts automatically instead of a manual Resume at each pause.

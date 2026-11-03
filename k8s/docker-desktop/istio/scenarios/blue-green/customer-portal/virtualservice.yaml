@@ -1,0 +1,19 @@
+# Shop routing for the blue-green scenario: 100% to the ACTIVE Service. No weights:
+# Rollouts switches versions by changing the active Service's selector, not the VirtualService.
+# Same name as scenarios/basic/virtualservice.yaml, so it REPLACES the basic shop route.
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: krconnects-virtualservice
+  namespace: default
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - krconnects-gateway
+  http:
+    - route:
+        - destination:
+            host: customer-portal-active     # users always go to the active version
+            port:
+              number: 8080
