@@ -1,0 +1,26 @@
+# Shop routing for the canary scenario: stable/canary weights.
+# Same name as scenarios/basic/virtualservice.yaml, so applying this REPLACES the basic shop route.
+# Git keeps 100/0; Argo Rollouts changes the weights in the cluster during a release.
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: krconnects-virtualservice
+  namespace: default
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - krconnects-gateway
+  http:
+    - name: primary                            # same name as in the Rollout (routes: primary)
+      route:
+        - destination:
+            host: customer-portal-stable       # current version
+            port:
+              number: 8080
+          weight: 100                          # Rollouts sets 90, 75, 50, 25 ...
+        - destination:
+            host: customer-portal-canary       # new version
+            port:
+              number: 8080
+          weight: 0                            # Rollouts sets 10, 25, 50, 75 ...

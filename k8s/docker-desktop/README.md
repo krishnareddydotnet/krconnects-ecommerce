@@ -10,7 +10,7 @@ Secrets are NOT here: create them with kubectl (see docs/local-and-aks.md).
 | `istio/common/authorization-policies/` | Who may call each service, zero trust (always applied) |
 | `istio/monitoring/` | Prometheus, Grafana and Kiali through the gateway: https://prometheus.localhost, https://grafana.localhost, https://kiali.localhost (always applied) |
 | `istio/scenarios/basic/` | Gateway (HTTPS 443 + redirect 80) + VirtualServices: https://localhost -> customer-portal, https://admin.localhost -> admin-portal |
-| `istio/scenarios/canary/` | Canary hands-on (to be added; needs Argo Rollouts, setup guide B7) |
+| `istio/scenarios/canary/customer-portal/` | Canary for customer-portal: Rollout + stable/canary Services + weighted VirtualService (needs Argo Rollouts, setup guide B7; steps in `scenarios/canary/README.md`) |
 | `istio/scenarios/blue-green/` | Blue-green hands-on (to be added; needs Argo Rollouts, setup guide B7) |
 | `istio/scenarios/ab-testing/` | A/B testing hands-on (to be added) |
 | `monitoring/kube-prometheus-stack-values.yaml` | Helm values: Prometheus (7d, 10Gi), Grafana (login from secret `grafana-admin`) |
@@ -30,17 +30,19 @@ HTTPS for all URLs (self-signed certificate, PowerShell only, secret `krconnects
   Istio picks the app by the Host header (exact host beats the shop's `"*"`). Chrome/Edge resolve
   `*.localhost` to 127.0.0.1, so no hosts-file change is needed. On a real cluster these tools belong on an
   internal gateway, never the public one (Prometheus has no login).
-- `scenarios/` holds self-contained labs. Only ONE scenario is active at a time:
-  delete the current one, then apply the next. Scenarios use the same object names
-  (e.g. `krconnects-gateway`), so nothing is left over.
+- `scenarios/` holds the labs. `basic/` (Gateway, shop route, admin route) always stays applied;
+  a scenario replaces only what it changes. Same object names are used on purpose, so applying a
+  scenario replaces the basic object (e.g. the canary's `krconnects-virtualservice` replaces the basic
+  shop route), and re-applying `basic/` restores it. Only ONE scenario at a time.
 
 ```powershell
-kubectl delete -f k8s/docker-desktop/istio/scenarios/basic/
-kubectl apply  -f k8s/docker-desktop/istio/scenarios/canary/
+kubectl apply -f k8s/docker-desktop/istio/scenarios/canary/customer-portal/   # start a scenario
+kubectl apply -f k8s/docker-desktop/istio/scenarios/basic/                    # back to basic routing
 ```
 
-If Argo CD manages an object a scenario replaces (e.g. the order-api Deployment for canary),
-pause or remove that Argo CD Application first, otherwise self-heal puts it back.
+If Argo CD manages an object a scenario replaces (e.g. the customer-portal Deployment for the canary),
+remove that Argo CD Application first, otherwise self-heal puts it back. Each scenario README lists
+the exact steps there and back.
 
 ## Who may call whom
 
