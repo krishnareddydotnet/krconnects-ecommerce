@@ -303,8 +303,8 @@ img.cart-thumb { width: 64px; height: 64px; }
 
 /* ---------- Promo banner (offer strip above the header) ---------- */
 .promo-banner {
-  /* Dark red (was dark green for v2): makes the canary v3 release easy to spot */
-  background: #7F1D1D;
+  /* Dark blue (was dark red for v3): makes the v4 release easy to spot */
+  background: #1E3A8A;
   color: #FFFFFF;
   font-size: 13px;
   font-weight: 500;
