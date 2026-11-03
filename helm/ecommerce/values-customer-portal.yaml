@@ -9,8 +9,8 @@ image:
   registry: "docker.io/ckreddy3030"
   # image NAME only (no registry part)
   repository: customer-portal
-  tag: "85e9b3d"
-  digest: "sha256:9446120e1969474d1ec5fa556b9ec2f849b17bb0acd5fff1c0b9cc3ce18c2542"
+  tag: "24e7bc3"
+  digest: "sha256:6c022f5a0284f79b17987f09fcb960b519e863cbcf4dbff26bfce2b45dd7e8fd"
   pullPolicy: IfNotPresent
 
 service:
