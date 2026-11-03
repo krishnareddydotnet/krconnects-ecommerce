@@ -1,0 +1,29 @@
+# Argo CD Application: customer-portal-bluegreen (blue-green scenario for customer-portal on Docker Desktop)
+#
+# Deploys the plain YAML in k8s/docker-desktop/istio/scenarios/blue-green/customer-portal/
+# (ServiceAccount, Rollout with blueGreen strategy, active/preview Services, VirtualService).
+# Promote in the Argo CD UI: Rollout resource -> three dots -> Promote-Full.
+#
+# Kept OUT of applications.yaml on purpose. WARNING: never run it together with
+# "customer-portal-canary" or the Helm app "customer-portal" (all own sa/customer-portal). Delete those first.
+# No ignoreDifferences needed: blue-green switches the Service selector (managed by Rollouts), not weights in Git.
+#
+# Apply: kubectl apply -f k8s/docker-desktop/argocd/bluegreen-customer-portal.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: customer-portal-bluegreen
+  namespace: argocd                    # Argo CD only reads Applications from its own namespace
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/krishnareddydotnet/krconnects-ecommerce.git
+    targetRevision: main               # follow the main branch
+    path: k8s/docker-desktop/istio/scenarios/blue-green/customer-portal   # plain YAML folder (no Helm)
+  destination:
+    server: https://kubernetes.default.svc   # this cluster (in-cluster)
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true        # remove resources that were deleted from Git
+      selfHeal: true     # undo manual changes made in the cluster

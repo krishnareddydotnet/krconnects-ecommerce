@@ -1,0 +1,80 @@
+# Blue-green scenario for customer-portal: ServiceAccount, Rollout (blueGreen), active Service, preview Service.
+# Deployed by the Argo CD app "customer-portal-bluegreen" (k8s/docker-desktop/argocd/bluegreen-customer-portal.yaml).
+# Never run it together with the canary app or the Helm app "customer-portal" (all own sa/customer-portal).
+
+# ServiceAccount: same name as before, because auth-api, catalog-api and order-api
+# only accept calls from cluster.local/ns/default/sa/customer-portal
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: customer-portal
+  namespace: default
+automountServiceAccountToken: false     # the app never calls the Kubernetes API
+---
+# Rollout: blue-green. A new image starts GREEN next to BLUE; users stay on blue until you promote.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: customer-portal
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: customer-portal
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: customer-portal
+        app.kubernetes.io/instance: customer-portal   # customer-portal AuthorizationPolicy selects this label
+    spec:
+      serviceAccountName: customer-portal
+      containers:
+        - name: customer-portal
+          image: docker.io/ckreddy3030/customer-portal:85e9b3d@sha256:9446120e1969474d1ec5fa556b9ec2f849b17bb0acd5fff1c0b9cc3ce18c2542   # v3 (red banner)
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080       # nginx-unprivileged listens on 8080
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+  strategy:
+    blueGreen:
+      activeService: customer-portal-active     # USERS: points at blue now, at green after promote
+      previewService: customer-portal-preview   # TESTERS: points at green (the new version) before promote
+      autoPromotionEnabled: false               # wait for a manual promote (no automatic switch)
+      scaleDownDelaySeconds: 60                 # keep blue running 60s after the switch (instant rollback window)
+---
+# Active Service: real users (the gateway route points here)
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer-portal-active
+  namespace: default
+spec:
+  selector:
+    app.kubernetes.io/instance: customer-portal   # Rollouts adds a hidden hash label: blue or green
+  ports:
+    - name: http                # Istio detects HTTP from the port name
+      port: 8080
+      targetPort: 8080
+---
+# Preview Service: testers only (kubectl port-forward), never in the gateway route
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer-portal-preview
+  namespace: default
+spec:
+  selector:
+    app.kubernetes.io/instance: customer-portal   # Rollouts adds a hidden hash label: the new version
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
