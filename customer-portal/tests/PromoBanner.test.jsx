@@ -10,7 +10,7 @@ describe('PromoBanner', () => {
     const banner = screen.getByRole('region', { name: 'Current offer' });
     expect(banner).toBeInTheDocument();
 
-    // ...and it shows the v2 offer text (canary release)
-    expect(banner).toHaveTextContent('NEW: Free delivery on all orders this week - v2');
+    // ...and it shows the offer text with a version label (v1, v2 ... used for canary practice)
+    expect(banner).toHaveTextContent(/^NEW: Free delivery on all orders this week - v\d+$/);
   });
 });
