@@ -35,7 +35,7 @@ function Header({ searchText, onSearchChange, currentUser, cartCount, onLoginCli
             </>
           ) : (
             <>
-              <button className="btn btn-ghost" type="button" onClick={onLoginClick}>Log in</button>
+              <button className="btn btn-login" type="button" onClick={onLoginClick}>Log in</button>
               <button className="btn btn-primary" type="button" onClick={onSignupClick}>Sign up</button>
             </>
           )}

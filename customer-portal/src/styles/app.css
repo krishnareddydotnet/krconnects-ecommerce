@@ -45,6 +45,9 @@ button, input, select { font: inherit; }
 .btn-ghost { background: transparent; color: var(--text); border-color: transparent; }
 .btn-ghost:hover { background: var(--bg-soft); }
 .btn-outline { background: #FFFFFF; color: var(--text); border-color: var(--border-strong); }
+/* Header "Log in" button: solid green, so it stands out next to the indigo "Sign up" button */
+.btn-login { background: #15803D; color: #FFFFFF; }
+.btn-login:hover { background: #166534; }
 .btn:focus-visible, .chip:focus-visible, .icon-btn:focus-visible, input:focus-visible, select:focus-visible {
   outline: 3px solid #A5B4FC; outline-offset: 2px;
 }
