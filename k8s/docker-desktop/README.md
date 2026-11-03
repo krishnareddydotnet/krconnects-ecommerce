@@ -9,7 +9,7 @@ Secrets are NOT here: create them with kubectl (see docs/local-and-aks.md).
 | `istio/common/authentication/peer-authentication.yaml` | STRICT mTLS for the `default` namespace (always applied) |
 | `istio/common/authorization-policies/` | Who may call each service, zero trust (always applied) |
 | `istio/monitoring/` | Prometheus, Grafana and Kiali through the gateway: https://prometheus.localhost, https://grafana.localhost, https://kiali.localhost (always applied) |
-| `istio/scenarios/basic/` | Gateway (HTTPS 443 + redirect 80) + VirtualService: all traffic to customer-portal |
+| `istio/scenarios/basic/` | Gateway (HTTPS 443 + redirect 80) + VirtualServices: https://localhost -> customer-portal, https://admin.localhost -> admin-portal |
 | `istio/scenarios/canary/` | Canary hands-on (to be added) |
 | `istio/scenarios/blue-green/` | Blue-green hands-on (to be added) |
 | `istio/scenarios/ab-testing/` | A/B testing hands-on (to be added) |
@@ -51,7 +51,7 @@ pause or remove that Argo CD Application first, otherwise self-heal puts it back
 | catalog-api | customer-portal, admin-portal |
 | order-api | customer-portal, admin-portal |
 | data-api | auth-api, catalog-api, order-api |
-| admin-portal | Istio ingress gateway (for a future admin host); port-forward still works |
+| admin-portal | Istio ingress gateway (https://admin.localhost); port-forward still works |
 | everything else | denied by the `allow-nothing` baseline (e.g. notification-service) |
 
 notification-service is not deployed on Docker Desktop (it needs Azure Service Bus).

@@ -6,6 +6,7 @@ created with built-in PowerShell 7 (no third-party tools).
 | URL | App |
 |---|---|
 | https://localhost | customer-portal (shop) |
+| https://admin.localhost | admin-portal |
 | https://prometheus.localhost | Prometheus |
 | https://grafana.localhost | Grafana |
 | https://kiali.localhost | Kiali |
@@ -34,7 +35,7 @@ Browser --HTTPS--> istio-ingress gateway (decrypts TLS with our certificate)
 ## Step 1: create the certificate (Windows certificate store)
 
 ```powershell
-$cert = New-SelfSignedCertificate -Subject "CN=localhost" -DnsName "localhost","argocd.localhost","grafana.localhost","prometheus.localhost","kiali.localhost" -CertStoreLocation "Cert:\CurrentUser\My" -KeyAlgorithm RSA -KeyLength 2048 -KeyExportPolicy Exportable -NotAfter (Get-Date).AddYears(2) -FriendlyName "krconnects-localhost"
+$cert = New-SelfSignedCertificate -Subject "CN=localhost" -DnsName "localhost","admin.localhost","argocd.localhost","grafana.localhost","prometheus.localhost","kiali.localhost" -CertStoreLocation "Cert:\CurrentUser\My" -KeyAlgorithm RSA -KeyLength 2048 -KeyExportPolicy Exportable -NotAfter (Get-Date).AddYears(2) -FriendlyName "krconnects-localhost"
 $cert | Format-List Subject, DnsNameList, NotAfter, Thumbprint
 ```
 
@@ -105,17 +106,37 @@ Login: `admin` + the password from `argocd-initial-admin-secret` (see docs/docke
 
 1. https://localhost shows the shop; site info says "Connection is secure".
 2. http://localhost switches to https://localhost (redirect).
-3. https://prometheus.localhost, https://grafana.localhost, https://kiali.localhost, https://argocd.localhost.
+3. https://admin.localhost, https://prometheus.localhost, https://grafana.localhost, https://kiali.localhost, https://argocd.localhost.
 
 Still "Not secure"? Close all Chrome/Edge windows and reopen (trusted certificates are cached).
 
 ## Renew or remove
 
-- Renew (2 years) or add a name: repeat steps 1-3, then replace the secret:
-  `kubectl delete secret krconnects-localhost-tls -n istio-ingress` and step 4 again.
-- Remove the trusted certificate: `certmgr.msc` (or Manage user certificates) ->
-  Trusted Root Certification Authorities -> Certificates -> delete "localhost" (FriendlyName krconnects-localhost);
-  also delete it from Personal -> Certificates.
+Renew (2 years) or add a name (e.g. a new `xyz.localhost` URL):
+
+1. Remove the old certificate from both Windows stores (thumbprint from `$cert.Thumbprint` or
+   `Get-ChildItem Cert:\CurrentUser\My | Where-Object FriendlyName -eq "krconnects-localhost"`):
+
+```powershell
+Get-ChildItem Cert:\CurrentUser\My | Where-Object Thumbprint -eq "<old-thumbprint>" | Remove-Item
+certutil -user -delstore Root <old-thumbprint>
+```
+
+   `Remove-Item` cannot delete from the Root store ("UI is not allowed"): `certutil` shows the Windows
+   confirmation prompt, click Yes.
+2. Repeat steps 1-3 with the new name added to `-DnsName`.
+3. Replace the secret; the gateway reloads it within seconds (no restart):
+
+```powershell
+kubectl delete secret krconnects-localhost-tls -n istio-ingress
+kubectl create secret tls krconnects-localhost-tls -n istio-ingress --cert=D:\krconnects\localhost.crt --key=D:\krconnects\localhost.key
+```
+
+4. Close all Chrome/Edge windows and reopen them.
+
+Remove completely: the two commands in 1, plus `kubectl delete secret krconnects-localhost-tls -n istio-ingress`.
+GUI alternative: `certmgr.msc` -> Trusted Root Certification Authorities / Personal -> Certificates ->
+delete "localhost" (FriendlyName krconnects-localhost).
 
 ## Production comparison
 

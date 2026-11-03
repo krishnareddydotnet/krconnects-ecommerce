@@ -253,10 +253,13 @@ Istio 1.30 runs the sidecar as a native sidecar (an init container that keeps ru
 kubectl apply -f k8s/docker-desktop/istio/scenarios/basic/
 ```
 
-`scenarios/basic/` holds the Gateway and VirtualService (plain 100% routing). Other scenarios
+`scenarios/basic/` holds the Gateway and the VirtualServices (plain 100% routing): `localhost` -> customer-portal,
+`admin.localhost` -> admin-portal. Other scenarios
 (canary, blue-green, A/B testing) live next to it; only one scenario is applied at a time.
 
-Open **http://localhost** (no port-forward needed): customer portal through the Istio gateway.
+Open **https://localhost** (customer portal) and **https://admin.localhost** (admin portal), no port-forward needed.
+The Gateway serves HTTPS only (port 80 redirects), so create the certificate and the TLS secret first:
+`docs/docker-desktop-https.md`, steps 1-4.
 
 | Resource | Question it answers |
 |---|---|
@@ -283,10 +286,10 @@ Who may call whom:
 | catalog-api | customer-portal, admin-portal |
 | order-api | customer-portal, admin-portal |
 | data-api | auth-api, catalog-api, order-api |
-| admin-portal | Istio ingress gateway (for a future admin host); port-forward still works |
+| admin-portal | Istio ingress gateway (https://admin.localhost); port-forward still works |
 | everything else | denied by the `allow-nothing` baseline (e.g. notification-service) |
 
-Re-test: http://localhost (browse, log in, place an order) and the admin portal through port-forward.
+Re-test: https://localhost (browse, log in, place an order) and https://admin.localhost (admin portal).
 
 Adding a new service: add its service account to the policy of every service it calls, and add a policy for
 the new service listing who may call it.

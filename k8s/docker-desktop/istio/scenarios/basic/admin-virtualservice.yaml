@@ -1,0 +1,19 @@
+# VirtualService: https://admin.localhost -> admin portal (default namespace)
+# admin-portal's AuthorizationPolicy already allows the ingress gateway.
+# Production: the admin portal belongs on an INTERNAL gateway, not the public one.
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: admin-portal
+  namespace: default
+spec:
+  hosts:
+    - admin.localhost                    # only requests with Host: admin.localhost
+  gateways:
+    - krconnects-gateway                 # same namespace (default), so no prefix needed
+  http:
+    - route:
+        - destination:
+            host: admin-portal           # Kubernetes Service name (same namespace)
+            port:
+              number: 8080
