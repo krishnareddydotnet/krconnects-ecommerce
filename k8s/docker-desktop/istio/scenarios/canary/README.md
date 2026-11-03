@@ -8,6 +8,9 @@ Canary deployments with Argo Rollouts + Istio weights. One folder per service:
 
 Prerequisite: Argo Rollouts controller installed (`docs/docker-desktop-setup.md`, step B7).
 
+> **Note:** in real projects a service has ONE Rollout manifest per environment (strategy `canary` OR `blueGreen`).
+> Two files (canary and blue-green) exist here only to practise both strategies.
+
 ## customer-portal
 
 ### GitOps flow
@@ -15,7 +18,7 @@ Prerequisite: Argo Rollouts controller installed (`docs/docker-desktop-setup.md`
 ```
 merge code to main (customer-portal/**)
   -> customer-portal pipeline builds, scans, signs and pushes the image
-  -> bot PR updates helm/ecommerce/values-customer-portal.yaml AND customer-portal/rollout.yaml (new tag@digest)
+  -> bot PR updates helm/ecommerce/values-customer-portal.yaml AND both Rollouts (canary + blue-green rollout.yaml)
   -> merge the bot PR
   -> Argo CD (app customer-portal-canary) syncs the new image into the Rollout
   -> Argo Rollouts starts the canary by itself: 10% -> pause
@@ -24,6 +27,8 @@ merge code to main (customer-portal/**)
 ```
 
 No manual `kubectl apply` and no copying of tag@digest: Git is the only source of the image.
+The bot PR updates both Rollout files, but only the scenario whose Argo CD app exists is deployed
+(`customer-portal-canary` here; `customer-portal-bluegreen` for `../blue-green/`).
 The Argo CD app is defined in `k8s/docker-desktop/argocd/canary-customer-portal.yaml`.
 
 Why `ignoreDifferences` + `RespectIgnoreDifferences=true` in that app: Argo Rollouts changes the VirtualService
