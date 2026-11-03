@@ -10,6 +10,26 @@ Prerequisite: Argo Rollouts controller installed (`docs/docker-desktop-setup.md`
 
 ## customer-portal
 
+### GitOps flow
+
+```
+merge code to main (customer-portal/**)
+  -> customer-portal pipeline builds, scans, signs and pushes the image
+  -> bot PR updates helm/ecommerce/values-customer-portal.yaml AND customer-portal/rollout.yaml (new tag@digest)
+  -> merge the bot PR
+  -> Argo CD (app customer-portal-canary) syncs the new image into the Rollout
+  -> Argo Rollouts starts the canary by itself: 10% -> pause
+  -> promote / abort in the Argo CD UI: app customer-portal-canary -> Rollout resource -> three dots (⋮)
+     -> Promote (next step) / Promote-Full (100% now) / Abort (back to stable)
+```
+
+No manual `kubectl apply` and no copying of tag@digest: Git is the only source of the image.
+The Argo CD app is defined in `k8s/docker-desktop/argocd/canary-customer-portal.yaml`.
+
+Why `ignoreDifferences` + `RespectIgnoreDifferences=true` in that app: Argo Rollouts changes the VirtualService
+weights in the cluster during a release, while Git keeps 100/0. `ignoreDifferences` stops Argo CD from reporting
+that as OutOfSync, and `RespectIgnoreDifferences` stops a sync (self-heal) from writing 100/0 back mid-canary.
+
 ### Files
 
 | File | Objects |
@@ -30,10 +50,10 @@ new version, points `customer-portal-canary` at them (and `customer-portal-stabl
 gets a hidden `rollouts-pod-template-hash` selector), and changes the VirtualService weights step by step.
 Git keeps 100/0; the weights change only in the cluster during a release.
 
-### Start the scenario
+### Start the scenario (with Argo CD)
 
-1. Remove the Helm-managed customer-portal (Argo CD would put the Deployment back):
-   Argo CD UI -> customer-portal -> DELETE (propagation Foreground), or
+1. Remove the Helm-managed customer-portal (Argo CD would put the Deployment back, and both apps own
+   `sa/customer-portal`): Argo CD UI -> customer-portal -> DELETE (propagation Foreground), or
 
 ```powershell
 kubectl delete application customer-portal -n argocd
@@ -42,10 +62,12 @@ kubectl get deployment customer-portal          # NotFound
 
    This also deletes the ServiceAccount `customer-portal`, so do step 2 straight away.
 
-2. Apply the canary files (recreates the ServiceAccount):
+2. Create the Argo CD app for the canary (it applies the canary files and recreates the ServiceAccount).
+   This replaces the old manual `kubectl apply -f .../canary/customer-portal/`:
 
 ```powershell
-kubectl apply -f k8s/docker-desktop/istio/scenarios/canary/customer-portal/
+kubectl apply -f k8s/docker-desktop/argocd/canary-customer-portal.yaml
+kubectl get application customer-portal-canary -n argocd     # Synced, Healthy
 kubectl get rollout customer-portal
 kubectl get pods -l app.kubernetes.io/instance=customer-portal   # only the Rollout pods
 kubectl get sa customer-portal
@@ -60,11 +82,8 @@ VS Code may underline Rollout fields in red: the editor does not know the Rollou
 
 ### Run a canary
 
-Change the `image:` line in `rollout.yaml` to the new version (tag@digest from the pipeline's bot PR), then:
-
-```powershell
-kubectl apply -f k8s/docker-desktop/istio/scenarios/canary/customer-portal/rollout.yaml
-```
+Normally: merge the pipeline's bot PR (see GitOps flow). Argo CD syncs the new image and the canary starts.
+Argo CD polls Git about every 3 minutes; click REFRESH on the app to sync at once.
 
 Watch (no plugin needed):
 
@@ -77,9 +96,10 @@ kubectl get pods -l app.kubernetes.io/instance=customer-portal
 
 Kiali (https://kiali.localhost, Traffic Graph, namespace default) shows the split live.
 
-The Rollout is applied with kubectl, not by Argo CD, so it does not appear in the Argo CD UI.
-Promote / abort with kubectl (these set fields in the Rollout's status, exactly what the
-`kubectl argo rollouts` plugin does):
+Promote / abort in the Argo CD UI (app customer-portal-canary -> Rollout resource -> ⋮ -> Promote / Promote-Full / Abort).
+
+Without the Argo CD UI, promote / abort with kubectl (these set fields in the Rollout's status, exactly what the
+`kubectl argo rollouts` plugin and the Argo CD buttons do):
 
 ```powershell
 # next step (leave the current pause)
@@ -92,19 +112,23 @@ kubectl patch rollout customer-portal --subresource status --type merge -p '{"st
 kubectl patch rollout customer-portal --subresource status --type merge -p '{"status":{"abort":true}}'
 ```
 
-After an abort, Git still has the new image: set `rollout.yaml` back to the stable image and apply
-(in GitOps: git revert of the image commit).
+After an abort, Git still has the new image (Argo CD shows the Rollout Degraded). Roll Git back with a
+`git revert` of the bot PR's commit (PR to main); Argo CD syncs the stable image and the Rollout is healthy again.
+Never fix it with `kubectl apply`: self-heal would put Git's image back.
 
 ### Back to basic routing (end of the scenario)
 
+Delete the canary app WITH its resources (cascade: Rollout, Services, ServiceAccount, VirtualService), then
+restore the basic shop route and the Helm app:
+
 ```powershell
-kubectl delete -f k8s/docker-desktop/istio/scenarios/canary/customer-portal/rollout.yaml
+kubectl delete application customer-portal-canary -n argocd --cascade=foreground
 kubectl apply  -f k8s/docker-desktop/istio/scenarios/basic/virtualservice.yaml
-kubectl apply  -f k8s/docker-desktop/argocd/applications.yaml      # recreates the customer-portal Argo CD app
+kubectl apply  -f k8s/docker-desktop/argocd/applications.yaml      # recreates the customer-portal Helm app
 ```
 
+(Argo CD UI: customer-portal-canary -> DELETE, propagation Foreground, does the same as the first command.)
 Argo CD then recreates the Helm Deployment, Service and ServiceAccount `customer-portal`.
-Do not re-apply `applications.yaml` WHILE the canary scenario is active: it brings the Helm Deployment back
-next to the Rollout.
+Do not re-apply `applications.yaml` WHILE the canary app exists: the Helm Deployment would run next to the Rollout.
 
 Apply only one scenario at a time.

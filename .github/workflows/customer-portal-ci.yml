@@ -219,8 +219,24 @@ jobs:
           echo "New values file:"
           cat helm/ecommerce/values-customer-portal.yaml
 
+      # GitOps canary: ALSO put the new image into the canary Rollout, so merging the bot PR is enough.
+      # Argo CD (app customer-portal-canary) syncs the Rollout, and Argo Rollouts starts the canary by itself.
+      # Replaces the WHOLE image line (keeps its indentation), e.g.
+      #   image: docker.io/ckreddy3030/customer-portal:a1b2c3d@sha256:4f2a...   # set by customer-portal ci
+      # Same registry, tag and digest as the Helm values file above ($IMAGE_REGISTRY was saved to GITHUB_ENV).
+      - name: Update image in the canary Rollout
+        shell: bash
+        run: |
+          FILE=k8s/docker-desktop/istio/scenarios/canary/customer-portal/rollout.yaml
+          NEW_IMAGE="$IMAGE_REGISTRY/customer-portal:$IMAGE_TAG@$IMAGE_DIGEST"
+          sed -i -E "s|^([[:space:]]*)image:[[:space:]]*[^[:space:]]*/customer-portal[:@].*$|\1image: $NEW_IMAGE   # set by customer-portal ci|" "$FILE"
+          # Stop if the line was not found (otherwise the PR would silently leave the Rollout unchanged)
+          grep -q "image: $NEW_IMAGE" "$FILE" || { echo "image line not found in $FILE"; exit 1; }
+          echo "New image line:"
+          grep -n "image:" "$FILE"
+
       # Outside run: (with:, env:, if:) use the expression syntax ${{ env.IMAGE_TAG }}
-      # main is protected, so the new tag goes in through a PR
+      # main is protected, so the new tag goes in through a PR (Helm values file + canary Rollout)
       - name: Create PR for Helm image update
         uses: peter-evans/create-pull-request@v8
         with:
@@ -230,8 +246,16 @@ jobs:
           base: main
           title: "chore: update customer-portal image tag"
           body: |
-            Automated Helm image update after successful customer-portal CI.
+            Automated image update after successful customer-portal CI.
             - Registry: `${{ env.IMAGE_REGISTRY }}`
             - Tag: `${{ env.IMAGE_TAG }}`
             - Digest: `${{ env.IMAGE_DIGEST }}`
-          add-paths: helm/ecommerce/values-customer-portal.yaml
+
+            Updated files:
+            - `helm/ecommerce/values-customer-portal.yaml` (Helm app `customer-portal`)
+            - `k8s/docker-desktop/istio/scenarios/canary/customer-portal/rollout.yaml` (Argo CD app `customer-portal-canary`):
+              merging starts a canary when that app is active
+          # One path per line: both files go into the same bot PR
+          add-paths: |
+            helm/ecommerce/values-customer-portal.yaml
+            k8s/docker-desktop/istio/scenarios/canary/customer-portal/rollout.yaml
