@@ -44,6 +44,7 @@ kubectl apply -f k8s/docker-desktop/istio/scenarios/basic/                    # 
 If Argo CD manages an object a scenario replaces (e.g. the customer-portal Deployment for the canary),
 remove that Argo CD Application first, otherwise self-heal puts it back. Each scenario README lists
 the exact steps there and back.
+Switching customer-portal between basic, canary and blue-green: `istio/scenarios/README.md`.
 
 ## Who may call whom
 
