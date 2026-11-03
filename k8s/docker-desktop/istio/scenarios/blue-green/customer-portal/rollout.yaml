@@ -31,7 +31,7 @@ spec:
       serviceAccountName: customer-portal
       containers:
         - name: customer-portal
-          image: docker.io/ckreddy3030/customer-portal:85e9b3d@sha256:9446120e1969474d1ec5fa556b9ec2f849b17bb0acd5fff1c0b9cc3ce18c2542   # v3 (red banner)
+          image: docker.io/ckreddy3030/customer-portal:4c87645@sha256:569328a009e73f40e42c8994a518c34bdca6dce43506b7126569b843dcdbc8f6   # set by customer-portal ci
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
