@@ -10,13 +10,14 @@ Secrets are NOT here: create them with kubectl (see docs/local-and-aks.md).
 | `istio/common/authorization-policies/` | Who may call each service, zero trust (always applied) |
 | `istio/monitoring/` | Prometheus, Grafana and Kiali through the gateway: https://prometheus.localhost, https://grafana.localhost, https://kiali.localhost (always applied) |
 | `istio/scenarios/basic/` | Gateway (HTTPS 443 + redirect 80) + VirtualServices: https://localhost -> customer-portal, https://admin.localhost -> admin-portal |
-| `istio/scenarios/canary/customer-portal/` | Canary for customer-portal: Rollout + stable/canary Services + weighted VirtualService (needs Argo Rollouts, setup guide B7; steps in `scenarios/canary/README.md`) |
+| `istio/scenarios/canary/customer-portal/` | Canary for customer-portal: Rollout + stable/canary Services + weighted VirtualService, deployed by Argo CD app `customer-portal-canary`; the pipeline's bot PR updates the Rollout image (needs Argo Rollouts, setup guide B7; steps in `scenarios/canary/README.md`) |
 | `istio/scenarios/blue-green/` | Blue-green hands-on (to be added; needs Argo Rollouts, setup guide B7) |
 | `istio/scenarios/ab-testing/` | A/B testing hands-on (to be added) |
 | `monitoring/kube-prometheus-stack-values.yaml` | Helm values: Prometheus (7d, 10Gi), Grafana (login from secret `grafana-admin`) |
 | `monitoring/istio-monitors.yaml` | PodMonitor (every Envoy sidecar) + ServiceMonitor (istiod): how Prometheus scrapes Istio |
 | `monitoring/kiali-values.yaml` | Helm values: Kiali (anonymous, reads kube-prometheus-stack) |
-| `argocd/applications.yaml` | The 6 Argo CD Applications |
+| `argocd/applications.yaml` | The 6 Argo CD Applications (Helm) |
+| `argocd/canary-customer-portal.yaml` | Argo CD Application `customer-portal-canary` (GitOps canary, plain YAML): apply only for the canary scenario, never together with the Helm app `customer-portal` (steps in `istio/scenarios/canary/README.md`) |
 | `argocd/argocd-values.yaml` | Helm values: argocd-server insecure mode (TLS done by the gateway) |
 | `argocd/argocd-virtualservice.yaml` | https://argocd.localhost through the gateway |
 
