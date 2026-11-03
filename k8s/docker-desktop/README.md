@@ -10,8 +10,8 @@ Secrets are NOT here: create them with kubectl (see docs/local-and-aks.md).
 | `istio/common/authorization-policies/` | Who may call each service, zero trust (always applied) |
 | `istio/monitoring/` | Prometheus, Grafana and Kiali through the gateway: https://prometheus.localhost, https://grafana.localhost, https://kiali.localhost (always applied) |
 | `istio/scenarios/basic/` | Gateway (HTTPS 443 + redirect 80) + VirtualServices: https://localhost -> customer-portal, https://admin.localhost -> admin-portal |
-| `istio/scenarios/canary/` | Canary hands-on (to be added) |
-| `istio/scenarios/blue-green/` | Blue-green hands-on (to be added) |
+| `istio/scenarios/canary/` | Canary hands-on (to be added; needs Argo Rollouts, setup guide B7) |
+| `istio/scenarios/blue-green/` | Blue-green hands-on (to be added; needs Argo Rollouts, setup guide B7) |
 | `istio/scenarios/ab-testing/` | A/B testing hands-on (to be added) |
 | `monitoring/kube-prometheus-stack-values.yaml` | Helm values: Prometheus (7d, 10Gi), Grafana (login from secret `grafana-admin`) |
 | `monitoring/istio-monitors.yaml` | PodMonitor (every Envoy sidecar) + ServiceMonitor (istiod): how Prometheus scrapes Istio |

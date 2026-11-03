@@ -395,6 +395,40 @@ All URLs above, the shop and Argo CD (https://argocd.localhost) run over HTTPS w
 certificate created with PowerShell 7; `http://` redirects to `https://`.
 Full steps (certificate, TLS secret, Gateway on 443, Argo CD insecure mode): **docs/docker-desktop-https.md**.
 
+
+## B7. Argo Rollouts (canary and blue-green deployments)
+
+Argo Rollouts adds the `Rollout` object: a Deployment with release strategies (canary steps with Istio
+weights, blue-green with active/preview Services, pauses, promote/abort). Needed for
+`k8s/docker-desktop/istio/scenarios/canary/` and `blue-green/`.
+
+| Helm release | Chart (version) | App version | Namespace |
+|---|---|---|---|
+| argo-rollouts | argo/argo-rollouts (2.43.8) | v1.10.1 | argo-rollouts |
+
+The `argo` Helm repository was added in A4 (Argo CD).
+
+```powershell
+helm repo update
+helm search repo argo/argo-rollouts                 # latest chart version (2.43.8 was used here)
+helm install argo-rollouts argo/argo-rollouts -n argo-rollouts --create-namespace --version 2.43.8
+kubectl get pods -n argo-rollouts                   # 2 x argo-rollouts-... Running (chart default: 2 replicas)
+kubectl get crd | Select-String argoproj.io         # rollouts, analysistemplates, analysisruns, experiments ...
+```
+
+- The controller watches `Rollout` objects: it creates the ReplicaSets, points the stable/canary Services
+  at the right pods and changes the VirtualService weights step by step.
+- The CRDs are the new object types (`Rollout`, `AnalysisTemplate`, ...) that Kubernetes now accepts.
+
+Promote / abort a running rollout:
+
+- Argo CD UI (no extra tool): open the Application, click the Rollout resource -> &#8942; -> Promote or Abort.
+- Optional CLI plugin `kubectl argo rollouts` (separate download from the Argo Rollouts GitHub releases):
+  `kubectl argo rollouts get rollout <name> --watch`, `... promote <name>`, `... abort <name>`.
+
+Remove: `helm uninstall argo-rollouts -n argo-rollouts` (delete the Rollouts first; the CRDs stay and are
+removed with `kubectl delete crd rollouts.argoproj.io analysistemplates.argoproj.io analysisruns.argoproj.io experiments.argoproj.io clusteranalysistemplates.argoproj.io`).
+
 ---
 
 # Part C: troubleshooting
