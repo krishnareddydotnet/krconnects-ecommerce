@@ -91,6 +91,9 @@ spec:
       selfHeal: true     # undo manual changes made in the cluster
 ---
 # Argo CD Application: customer-portal (deploys helm/ecommerce with values-customer-portal.yaml from main)
+# WARNING: do not have this app and "customer-portal-canary" (canary-customer-portal.yaml) at the same time.
+# Both own sa/customer-portal, and this Helm Deployment would run next to the canary Rollout.
+# For the canary scenario delete this app first (k8s/docker-desktop/istio/scenarios/canary/README.md).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

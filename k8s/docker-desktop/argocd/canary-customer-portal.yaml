@@ -1,0 +1,44 @@
+# Argo CD Application: customer-portal-canary (GitOps canary for customer-portal on Docker Desktop)
+#
+# Deploys the plain YAML in k8s/docker-desktop/istio/scenarios/canary/customer-portal/
+# (ServiceAccount, Rollout, stable/canary Services, weighted VirtualService).
+# The customer-portal pipeline's bot PR updates the Rollout's image; after the merge Argo CD syncs it
+# and Argo Rollouts starts the canary. Promote / abort in the Argo CD UI (Rollout resource -> three dots).
+#
+# Kept OUT of applications.yaml on purpose: apply it only for the canary scenario.
+# WARNING: never run this app at the same time as the Helm app "customer-portal". Both own
+# sa/customer-portal, and the Helm Deployment would run next to the Rollout. Delete the Helm app first.
+#
+# Apply: kubectl apply -f k8s/docker-desktop/argocd/canary-customer-portal.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: customer-portal-canary
+  namespace: argocd                    # Argo CD only reads Applications from its own namespace
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/krishnareddydotnet/krconnects-ecommerce.git
+    targetRevision: main               # follow the main branch: a merged bot PR is deployed
+    path: k8s/docker-desktop/istio/scenarios/canary/customer-portal   # plain YAML folder (no Helm)
+  destination:
+    server: https://kubernetes.default.svc   # this cluster (in-cluster)
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true        # remove resources that were deleted from Git
+      selfHeal: true     # undo manual changes made in the cluster
+    syncOptions:
+      # Also skip the ignored fields below when SYNCING (not only in the diff). Without it a sync
+      # would write Git's 100/0 back into the VirtualService in the middle of a canary.
+      - RespectIgnoreDifferences=true
+  # Argo Rollouts changes these weights in the cluster during a release (90/10, 75/25, ...).
+  # Git keeps 100/0, so without this Argo CD shows OutOfSync and self-heal fights Rollouts.
+  ignoreDifferences:
+    - group: networking.istio.io
+      kind: VirtualService
+      name: krconnects-virtualservice
+      namespace: default
+      jsonPointers:
+        - /spec/http/0/route/0/weight    # stable weight
+        - /spec/http/0/route/1/weight    # canary weight
