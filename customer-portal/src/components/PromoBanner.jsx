@@ -1,6 +1,6 @@
 // PromoBanner: a thin offer strip shown at the top of every page, just above the header.
 // The text lives in one place (PROMO_TEXT), so marketing changes are a one-line edit.
-const PROMO_TEXT = 'NEW: Free delivery on all orders this week - v2';
+const PROMO_TEXT = 'NEW: Free delivery on all orders this week - v1';
 
 function PromoBanner() {
   return (
