@@ -34,8 +34,9 @@ the CI last pushed. To pull from somewhere else, add one more `-f` file. **The l
 3. **Actions** → pick a service's workflow (e.g. *data api ci*) → **Run workflow** (branch `main`).
    Do this for each service you want rebuilt in the new registry.
 4. Each run opens a bot PR that updates `registry`, `tag` and `digest` in `values-<service>.yaml`. Merge it.
-   The customer-portal bot PR also updates the image in the canary Rollout
-   (`k8s/docker-desktop/istio/scenarios/canary/customer-portal/rollout.yaml`, see that folder's README).
+   The customer-portal bot PR also updates the image in both Argo Rollouts manifests:
+   `k8s/docker-desktop/istio/scenarios/canary/customer-portal/rollout.yaml` and
+   `k8s/docker-desktop/istio/scenarios/blue-green/customer-portal/rollout.yaml` (only the active scenario's app deploys it).
 
 The digest is the same content in both registries only if the same build was pushed to both. Images built by CI
 in Docker Hub mode do **not** exist in ACR (and the other way round), so rebuild after switching.

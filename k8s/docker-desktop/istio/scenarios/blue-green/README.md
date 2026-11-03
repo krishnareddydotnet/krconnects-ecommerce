@@ -8,6 +8,9 @@ Blue-green deployments with Argo Rollouts. One folder per service:
 
 Prerequisite: Argo Rollouts controller installed (`docs/docker-desktop-setup.md`, step B7).
 
+> **Note:** in real projects a service has ONE Rollout manifest per environment (strategy `canary` OR `blueGreen`).
+> Two files (canary and blue-green) exist here only to practise both strategies.
+
 ## customer-portal
 
 ### How it works
@@ -45,9 +48,18 @@ The first sync has no older version: the image becomes blue (active) directly. T
 
 ### Release a new version
 
-The customer-portal pipeline's bot PR updates the CANARY Rollout only. For blue-green, change the `image:` line
-in `customer-portal/rollout.yaml` (tag@digest from the bot PR), commit through a PR, merge, then REFRESH
-`customer-portal-bluegreen` in Argo CD.
+No manual image edit: the customer-portal pipeline's bot PR updates the blue-green `customer-portal/rollout.yaml` too.
+
+```
+merge code to main (customer-portal/**)
+  -> customer-portal pipeline builds, scans, signs and pushes the image
+  -> bot PR updates BOTH Rollouts (canary + blue-green rollout.yaml) and helm/ecommerce/values-customer-portal.yaml
+  -> merge the bot PR
+  -> Argo CD syncs the ACTIVE scenario app (here customer-portal-bluegreen; REFRESH to sync at once)
+  -> the blue-green release starts (or a canary, if customer-portal-canary is the active app)
+```
+
+Only the scenario whose Argo CD app exists is deployed; the other Rollout file just keeps the latest image in Git.
 
 1. Green starts at full size; the app shows Suspended (waiting for promote). Users still see blue.
 2. Test green only:
