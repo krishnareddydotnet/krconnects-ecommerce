@@ -9,7 +9,8 @@ GitHub only runs files directly in `.github/workflows/`, so nothing in this fold
 ## Rules
 
 - Only the per-service pipelines (`*-ci.yml`) are archived. Shared workflows (secret-scan, codeql, snyk-security,
-  terraform-ci, checkouttest) stay only in `.github/workflows/`.
+  terraform-ci, checkouttest) stay only in `.github/workflows/`. `terraform-ci.yml` also ends in `-ci.yml`,
+  so the commands below use `-Exclude terraform-ci.yml`.
 - Only one set may be active: both sets watch the same service folders, so two active sets would build every change
   twice and open two bot PRs.
 - Before every switch, copy the active set back to its archive folder first, so no change is lost.
@@ -19,13 +20,13 @@ GitHub only runs files directly in `.github/workflows/`, so nothing in this fold
 1. Save the active Docker Desktop pipelines (keeps any change made in `.github/workflows/`):
 
 ```powershell
-Copy-Item .github/workflows/*-ci.yml .github/workflows-archive-dockerdesktop/ -Force
+Copy-Item .github/workflows/*-ci.yml .github/workflows-archive-dockerdesktop/ -Exclude terraform-ci.yml -Force
 ```
 
 2. Remove them from the active folder:
 
 ```powershell
-Remove-Item .github/workflows/*-ci.yml
+Remove-Item .github/workflows/*-ci.yml -Exclude terraform-ci.yml
 ```
 
 3. Activate the AKS pipelines:

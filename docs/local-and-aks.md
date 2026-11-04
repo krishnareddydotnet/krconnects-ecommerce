@@ -1,8 +1,6 @@
-# Run on Docker Desktop or AKS (same code, different registry)
-
-> **Note:** the Docker Hub/Helm service pipelines described here are **active** again (`.github/workflows/<service>-ci.yml`).
-> The AKS (ACR, plain YAML) pipelines are archived in `.github/workflows-archive-aks/` while Docker Desktop is the target.
-> A copy of the Docker Desktop pipelines is kept in `.github/workflows-archive-dockerdesktop/`. Switch steps: see the README in each folder.
+> **Note:** the AKS (ACR, plain YAML) pipelines are **active** (`.github/workflows/aks-<service>-ci.yml`).
+> The Docker Hub/Helm service pipelines described here are archived in `.github/workflows-archive-dockerdesktop/` while AKS is the target.
+> A copy of the AKS pipelines is kept in `.github/workflows-archive-aks/`. Switch steps: see the README in each folder.
 
 Every service runs in two places **without code changes**:
 
