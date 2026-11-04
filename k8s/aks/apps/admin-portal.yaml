@@ -51,7 +51,7 @@ spec:
       containers:
         - name: admin-portal
           # CI replaces this whole line with <image>:<tag>@<digest> (bot PR). Do not edit it by hand.
-          image: krconnectspractice.azurecr.io/admin-portal:2b831d3@sha256:8877e9d2984dc8ed09a75a6859a1b1c6aafead681e47198a89a196ce77847ec4
+          image: krconnectspractice.azurecr.io/admin-portal:d2a67ae@sha256:0dde28287b993b9e654cb864eb015c6c7ca5b50df6280bc4781f3affde558dc4
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
