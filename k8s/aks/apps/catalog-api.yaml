@@ -57,7 +57,7 @@ spec:
       containers:
         - name: catalog-api
           # CI replaces this whole line with <image>:<tag>@<digest> (bot PR). Do not edit it by hand.
-          image: krconnectspractice.azurecr.io/catalog-api:2b831d3@sha256:1361a608e56514a3023566f8e9202329dd753911dad8202f65257e8c4fddade1
+          image: krconnectspractice.azurecr.io/catalog-api:d2a67ae@sha256:3215393e086a9297c1e4bc073d8d27cdd1bfbd6d5a021b95981f27e1fa14dd55
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
