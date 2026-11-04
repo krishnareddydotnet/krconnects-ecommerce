@@ -32,8 +32,8 @@ k8s/aks/
 
 ## Pipelines (GitHub Actions)
 
-- **Currently archived** in `.github/workflows-archive/aks/` (the Docker Hub pipelines are active; only one set may be active,
-  because both watch the same service folders). To switch back, see `.github/workflows-archive/aks/README.md`.
+- **Currently archived** in `.github/workflows-archive-aks/` (the Docker Desktop pipelines are active; only one set may be active,
+  because both watch the same service folders). To switch, see `.github/workflows-archive-aks/README.md`.
 - One AKS pipeline per microservice (`aks-<service>-ci.yml`): build, test, push the image to ACR (`krconnectspractice.azurecr.io`),
   then update the image (tag + digest) in `k8s/aks/apps/<service>.yaml` through a bot PR.
 - A pipeline runs only when its own service folder changes (path filter).
