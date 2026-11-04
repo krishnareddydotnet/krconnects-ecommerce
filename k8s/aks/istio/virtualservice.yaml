@@ -1,0 +1,20 @@
+# Routing: everything that arrives at krconnects-gateway goes to customer-portal (the shop).
+# customer-portal's nginx then forwards /api/, /catalog-api/ and /order-api/ to the backends inside the cluster.
+# admin-portal is NOT published here on purpose: admin pages do not belong on the internet
+# (use kubectl port-forward, or an internal gateway later).
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: customer-portal
+  namespace: default
+spec:
+  hosts:
+    - "*"                            # must match the Gateway's hosts
+  gateways:
+    - krconnects-gateway             # Gateway in the same namespace (default), so no prefix needed
+  http:
+    - route:
+        - destination:
+            host: customer-portal    # Kubernetes Service name (same namespace)
+            port:
+              number: 8080

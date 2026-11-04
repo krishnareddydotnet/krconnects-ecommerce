@@ -17,7 +17,7 @@ k8s/aks/
 ├── key-vault/     SecretProviderClass objects (Key Vault CSI driver + Workload Identity)  [present]
 │   ├── data-api-kv.yaml   Key Vault "data-db-connection" -> Secret data-api-secret / ConnectionStrings__DataDb
 │   └── jwt-key-kv.yaml    Key Vault "jwt-key"            -> Secret auth-api-secret / Jwt__Key
-├── istio/         managed Istio (asm-1-30): gateway, VirtualService, mTLS, AuthorizationPolicies   [later]
+├── istio/         managed Istio (asm-1-30): Gateway + VirtualService [present]; mTLS, AuthorizationPolicies [later]
 └── argocd/        Argo CD Applications (if deployed with GitOps)                                    [later]
 ```
 
@@ -126,6 +126,12 @@ kubectl apply -f k8s/aks/apps/customer-portal.yaml
 kubectl apply -f k8s/aks/apps/admin-portal.yaml
 ```
 
+Publish the shop on the managed Istio gateway (details: `istio/README.md`):
+
+```bash
+kubectl apply -f k8s/aks/istio/
+```
+
 ### Check
 
 All objects of all services:
@@ -194,13 +200,24 @@ per ServiceAccount** that reads Key Vault:
 | catalog-api | `system:serviceaccount:default:catalog-api` |
 | order-api | `system:serviceaccount:default:order-api` |
 
-Issuer = the cluster's OIDC issuer URL, audience = `api://AzureADTokenExchange`. Example (placeholders):
+Issuer = the cluster's OIDC issuer URL, audience = `api://AzureADTokenExchange`.
+
+Practice values: identity `id-krconnects-practice-ecommerce` in `rg-krconnects-practice-cin-001`. Find the issuer with
+`az aks show --resource-group rg-krconnects-practice-cin-001 --name aks-krconnects-practice-cin-001 --query oidcIssuerProfile.issuerUrl --output tsv`.
 
 ```bash
-az identity federated-credential create --name fc-data-api --identity-name <app-identity-name> --resource-group <identity-resource-group> --issuer <aks-oidc-issuer-url> --subject system:serviceaccount:default:data-api --audience api://AzureADTokenExchange
+az identity federated-credential create --name fc-data-api --identity-name id-krconnects-practice-ecommerce --resource-group rg-krconnects-practice-cin-001 --issuer https://centralindia.oic.prod-aks.azure.com/6a316c36-70c2-4533-895e-030164f7f49b/ed9e3aa4-82b1-4926-b439-2df758cfc3e6/ --subject system:serviceaccount:default:data-api --audience api://AzureADTokenExchange
 ```
 
-Repeat with `fc-auth-api`, `fc-catalog-api` and `fc-order-api` (and their subjects).
+Repeat with `fc-auth-api`, `fc-catalog-api` and `fc-order-api` (and their subjects). Check:
+
+```bash
+az identity federated-credential list --identity-name id-krconnects-practice-ecommerce --resource-group rg-krconnects-practice-cin-001 --query "[].{name:name, subject:subject}" --output table
+```
+
+Symptom when one is missing: the pod stays in `ContainerCreating`, and `kubectl get events` shows
+`FailedMount ... ClientAssertionCredential authentication failed`. After creating it, wait 1-2 minutes: the kubelet
+retries the mount by itself (no restart needed).
 The Key Vault secrets `jwt-key` and `data-db-connection` must exist (values set by you in Key Vault, never in Git).
 
 Azure SQL firewall: allow the AKS **outbound** public IP.
