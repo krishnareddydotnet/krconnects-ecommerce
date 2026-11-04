@@ -1,0 +1,22 @@
+# Entry point from the internet: the managed Istio external ingress gateway (AKS add-on asm-1-30).
+# The gateway pods run in namespace aks-istio-ingress behind a public LoadBalancer IP.
+# "istio: aks-istio-ingressgateway-external" selects those pods
+# (on Docker Desktop the label is "istio: ingress": different install, different label).
+#
+# HTTP only (port 80) on purpose: Azure Front Door sits in front and ends HTTPS with its own managed certificate,
+# then calls this gateway. Later: accept traffic from Front Door only (not directly on the public IP).
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: krconnects-gateway
+  namespace: default                 # same namespace as the VirtualService that uses it
+spec:
+  selector:
+    istio: aks-istio-ingressgateway-external   # which gateway pods get this listener
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "*"                        # any host name (we have no own domain yet; Front Door adds one later)
