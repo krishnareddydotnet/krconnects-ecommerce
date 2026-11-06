@@ -57,7 +57,7 @@ spec:
       containers:
         - name: catalog-api
           # CI replaces this whole line with <image>:<tag>@<digest> (docker-catalog-api-ci.yml bot PR). Do not edit it by hand.
-          image: docker.io/ckreddy3030/catalog-api:9467c61@sha256:dfddcf6a19ea7138ff4f8c3c11fcedc65422166d14d01eae87f64082daab09d3
+          image: docker.io/ckreddy3030/catalog-api:9cc713b@sha256:6742c5ec44c8614ade926e2e4210bac41310ce4a5401b3add79bd216be5063f1
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

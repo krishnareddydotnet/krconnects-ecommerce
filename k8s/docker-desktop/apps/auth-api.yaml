@@ -57,7 +57,7 @@ spec:
       containers:
         - name: auth-api
           # CI replaces this whole line with <image>:<tag>@<digest> (docker-auth-api-ci.yml bot PR). Do not edit it by hand.
-          image: docker.io/ckreddy3030/auth-api:9467c61@sha256:0b11d1fe3e611630da99162387d89f9c18ee68872a348d0710ac7d111e657fe2
+          image: docker.io/ckreddy3030/auth-api:9cc713b@sha256:5f65ee08cde39b50aaa7b423417a722076b74f11799be35d27ff35e55ca8ebf4
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
