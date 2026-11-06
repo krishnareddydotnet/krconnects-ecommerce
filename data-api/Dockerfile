@@ -27,6 +27,13 @@ RUN dotnet publish DataApi.csproj -c Release -o /app/publish
 
 # Stage 2: Run
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+
+# Temporary fix for CVE-2026-109518 (apt / libapt-pkg6.0t64 in the Ubuntu 24.04 base layer).
+# Runs as root (before USER). Remove this line once Microsoft republishes aspnet:10.0 with the fixed apt.
+RUN apt-get update \
+    && apt-get install --only-upgrade -y apt libapt-pkg6.0t64 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 COPY --from=build /app/publish .
 
