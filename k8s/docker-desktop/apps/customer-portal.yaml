@@ -56,7 +56,7 @@ spec:
       containers:
         - name: customer-portal
           # CI replaces this whole line with <image>:<tag>@<digest> (docker-customer-portal-ci.yml bot PR). Do not edit it by hand.
-          image: docker.io/ckreddy3030/customer-portal:a54eef4@sha256:636593b864deeb64df8ae3ad41e2b97c5aff69907a3dba615d3a51414d74ef46
+          image: docker.io/ckreddy3030/customer-portal:9cc713b@sha256:74f9822952c0a57ab8dcf6f00ebb95c7c70804372bd3125b7969b58ce69ad01b
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
