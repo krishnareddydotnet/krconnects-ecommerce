@@ -57,7 +57,7 @@ spec:
       containers:
         - name: order-api
           # CI replaces this whole line with <image>:<tag>@<digest> (docker-order-api-ci.yml bot PR). Do not edit it by hand.
-          image: docker.io/ckreddy3030/order-api:9467c61@sha256:3778c6186b674b5a06362d8c43f13968b381d4089a3939ed39f9970a4cecf037
+          image: docker.io/ckreddy3030/order-api:9cc713b@sha256:3516fb36add5d83b7a6f7b7b9c7a544bb871ed30b8b3848ea068c50f5a49a031
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
