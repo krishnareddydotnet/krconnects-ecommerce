@@ -99,8 +99,8 @@ Secrets are never stored in Git. They are created directly in the cluster
 | Area | Tool |
 |---|---|
 | CI/CD | GitHub Actions (one pipeline per service) |
-| Container registry | Docker Hub by default, or Azure Container Registry for AKS practice: chosen by the GitHub variable `IMAGE_REGISTRY` (CI) and `helm/ecommerce/registries/*.yaml` (Helm) |
-| Packaging | One shared Helm chart (`helm/ecommerce`) + one values file per service |
+| Container registry | Docker Hub (Docker Desktop, `docker-<service>-ci.yml`) and Azure Container Registry (AKS, `aks-<service>-ci.yml`); one pipeline set is active at a time |
+| Packaging | Plain Kubernetes YAML, one file per service: `k8s/docker-desktop/apps/` (Docker Desktop) and `k8s/aks/apps/` (AKS). The Helm chart `helm/ecommerce` is kept for reference |
 | GitOps | Argo CD |
 | Service mesh / ingress | Istio |
 | Infrastructure as Code | Terraform (`infra/terraform`) |

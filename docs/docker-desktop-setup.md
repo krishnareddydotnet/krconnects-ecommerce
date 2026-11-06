@@ -106,7 +106,8 @@ kubectl get applications -n argocd        # all Synced / Healthy
 kubectl get pods                          # 6 pods Running (1/1 without Istio)
 ```
 
-Argo CD deploys `helm/ecommerce` from `main` with the Docker Hub images that CI built.
+Argo CD deploys the plain YAML files `k8s/docker-desktop/apps/<service>.yaml` from `main`, with the Docker Hub images
+that CI built (the `docker-<service>-ci.yml` bot PRs update the image lines).
 notification-service is not deployed locally (it needs Azure Service Bus).
 
 ## A6. Check: open the sites with port-forward
@@ -126,11 +127,13 @@ kubectl port-forward svc/admin-portal 8085:8080
 ```
 
 Open **http://localhost:8085** and log in with an admin user (username listed in `Admin__Usernames` in
-`helm/ecommerce/values-auth-api.yaml`, default `admin`; sign up with that name on the customer portal first).
+`k8s/docker-desktop/apps/auth-api.yaml`, default `admin`; sign up with that name on the customer portal first).
 
 **Part A is done when the customer portal works through port-forward.** Only then continue with Part B.
 
 ## A7. Optional: build images locally and install with Helm (testing only, nothing pushed)
+
+This uses the Helm chart `helm/ecommerce`, which is kept for reference (Argo CD now deploys plain YAML).
 
 Use this to test local code changes without CI. Do not mix with Argo CD on the same cluster:
 if Argo CD manages a service, it will undo manual Helm changes (self-heal).
@@ -194,6 +197,41 @@ helm template data-api ./helm/ecommerce -f ./helm/ecommerce/values-data-api.yaml
 If pods show **ErrImageNeverPull**, the kind nodes cannot see Docker Desktop's local images.
 Load them into the cluster nodes first (e.g. `kind load docker-image data-api:v1.0.0 --name <cluster-name>`),
 or use the Argo CD path with Docker Hub images instead.
+
+## A8. metrics-server (needed for the HPAs)
+
+Every `k8s/docker-desktop/apps/<service>.yaml` has a HorizontalPodAutoscaler. It needs CPU numbers from
+metrics-server, which Docker Desktop does not install. Without it `kubectl get hpa` shows `<unknown>` and nothing scales
+(the apps still run).
+
+```powershell
+helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+helm repo update
+helm install metrics-server metrics-server/metrics-server -n kube-system --set "args={--kubelet-insecure-tls}"
+kubectl top nodes                          # CPU / memory after about a minute
+kubectl get hpa                            # TARGETS e.g. 2%/70% instead of <unknown>
+```
+
+`--kubelet-insecure-tls`: Docker Desktop's kubelet uses a self-signed certificate; this flag is for a local cluster
+only, never for a real one.
+
+## A9. One-time switch of an existing cluster from the Helm apps to plain YAML
+
+Only if your cluster still runs the old Helm-based Argo CD apps. The Deployments' selector labels change
+(Helm used `app.kubernetes.io/name: ecommerce`), and a selector cannot be changed in place, so the old Deployments are
+deleted once. Expect about a minute of downtime. If a canary or blue-green scenario is active, go back to basic first
+(`k8s/docker-desktop/istio/scenarios/README.md`).
+
+```powershell
+# 1. Remove the 6 Argo CD apps only (they have no cascade finalizer, so the running objects stay)
+kubectl delete -f k8s/docker-desktop/argocd/applications.yaml
+# 2. Delete the old Helm Deployments (Services and ServiceAccounts stay and are taken over in step 3)
+kubectl delete deployment data-api auth-api catalog-api order-api customer-portal admin-portal
+# 3. Create the apps again: now they deploy k8s/docker-desktop/apps/<service>.yaml
+kubectl apply -f k8s/docker-desktop/argocd/applications.yaml
+kubectl get applications -n argocd                 # all Synced / Healthy
+kubectl get sa,deploy,svc,hpa,pdb,networkpolicy
+```
 
 ---
 
@@ -435,7 +473,8 @@ removed with `kubectl delete crd rollouts.argoproj.io analysistemplates.argoproj
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Pod `ErrImagePull`, image shown as `data-api:<tag>` (pulled from `docker.io/library`) | `registry: ""` in the values file | Values must have `registry: "docker.io/ckreddy3030"`; re-run the service's pipeline |
+| Pod `ErrImagePull` | The `image:` line in `k8s/docker-desktop/apps/<service>.yaml` points to a tag/digest that is not on Docker Hub | Re-run the service's `docker-<service>-ci.yml` pipeline and merge its bot PR |
+| Argo CD sync error `field is immutable` on a Deployment (spec.selector) | Old Helm Deployment still there | A9: delete the old Deployments once |
 | customer-portal / admin-portal `CrashLoopBackOff`, nginx log `host not found in upstream "order-api"` | nginx checks all `proxy_pass` hosts at startup; a backend Service is missing | Deploy the missing service (order-api), then `kubectl delete pod <portal-pod>` |
 | data-api restarts, log `Client with IP address 'x.x.x.x' is not allowed` | Azure SQL firewall | Add / update the laptop IP rule (A2), then `kubectl rollout restart deployment data-api` |
 | UI says "not allowed" / API returns 403 `RBAC: access denied` | Istio AuthorizationPolicy does not list the caller | Add the caller's service account to the target's policy (B5) |
@@ -447,7 +486,7 @@ Useful commands:
 
 ```powershell
 kubectl describe pod <pod> | Select-String -Pattern "Image:|Failed|Error|Unhealthy"
-kubectl logs <pod> -c ecommerce --previous          # log of the crashed app container
+kubectl logs <pod> -c <service> --previous         # log of the crashed app container (container name = service name)
 kubectl get deployment -o wide                      # which image each service runs
 kubectl get applications -n argocd
 ```

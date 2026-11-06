@@ -1,6 +1,6 @@
 # Blue-green scenario for customer-portal: ServiceAccount, Rollout (blueGreen), active Service, preview Service.
 # Deployed by the Argo CD app "customer-portal-bluegreen" (k8s/docker-desktop/argocd/bluegreen-customer-portal.yaml).
-# Never run it together with the canary app or the Helm app "customer-portal" (all own sa/customer-portal).
+# Never run it together with the canary app or the basic app "customer-portal" (all own sa/customer-portal).
 
 # ServiceAccount: same name as before, because auth-api, catalog-api and order-api
 # only accept calls from cluster.local/ns/default/sa/customer-portal

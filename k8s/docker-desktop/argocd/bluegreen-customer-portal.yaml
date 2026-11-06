@@ -5,7 +5,7 @@
 # Promote in the Argo CD UI: Rollout resource -> three dots -> Promote-Full.
 #
 # Kept OUT of applications.yaml on purpose. WARNING: never run it together with
-# "customer-portal-canary" or the Helm app "customer-portal" (all own sa/customer-portal). Delete those first.
+# "customer-portal-canary" or the basic app "customer-portal" (all own sa/customer-portal). Delete those first.
 # No ignoreDifferences needed: blue-green switches the Service selector (managed by Rollouts), not weights in Git.
 #
 # Apply: kubectl apply -f k8s/docker-desktop/argocd/bluegreen-customer-portal.yaml

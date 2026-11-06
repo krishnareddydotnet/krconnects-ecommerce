@@ -53,7 +53,7 @@ No manual image edit: the customer-portal pipeline's bot PR updates the blue-gre
 ```
 merge code to main (customer-portal/**)
   -> customer-portal pipeline builds, scans, signs and pushes the image
-  -> bot PR updates BOTH Rollouts (canary + blue-green rollout.yaml) and helm/ecommerce/values-customer-portal.yaml
+  -> bot PR updates BOTH Rollouts (canary + blue-green rollout.yaml) and k8s/docker-desktop/apps/customer-portal.yaml
   -> merge the bot PR
   -> Argo CD syncs the ACTIVE scenario app (here customer-portal-bluegreen; REFRESH to sync at once)
   -> the blue-green release starts (or a canary, if customer-portal-canary is the active app)
