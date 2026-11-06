@@ -56,7 +56,7 @@ spec:
       containers:
         - name: admin-portal
           # CI replaces this whole line with <image>:<tag>@<digest> (docker-admin-portal-ci.yml bot PR). Do not edit it by hand.
-          image: docker.io/ckreddy3030/admin-portal:9467c61@sha256:d5b2f77337a6d9711558f127531eba5b91d2e7e6b963ef129fc8f65b92b861aa
+          image: docker.io/ckreddy3030/admin-portal:9cc713b@sha256:a845b53705c4e5244d5489ac10bfbc5891aad500dc91091cc06d88664d4f69ac
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
