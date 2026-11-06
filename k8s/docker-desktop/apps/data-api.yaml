@@ -57,7 +57,7 @@ spec:
       containers:
         - name: data-api
           # CI replaces this whole line with <image>:<tag>@<digest> (docker-data-api-ci.yml bot PR). Do not edit it by hand.
-          image: docker.io/ckreddy3030/data-api:9467c61@sha256:630e64f9bfc43052b4e473635c89f2696cc9521647a61b138109d9436b9a823b
+          image: docker.io/ckreddy3030/data-api:e4feb1b@sha256:9f78ed4c6914458bab26958791864fc7e58be86d12ab140ab315ae438b3de5c0
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
