@@ -1,4 +1,8 @@
-# Argo CD Application: data-api (deploys helm/ecommerce with values-data-api.yaml from main)
+# The 6 Argo CD Applications for Docker Desktop: one per service, each deploys ONE plain YAML file
+# from k8s/docker-desktop/apps/ (Docker Hub images; the docker-<service>-ci.yml bot PR updates the image line).
+# The Helm chart helm/ecommerce is no longer used here (kept for reference).
+#
+# Argo CD Application: data-api (deploys the plain YAML k8s/docker-desktop/apps/data-api.yaml from main)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -9,10 +13,9 @@ spec:
   source:
     repoURL: https://github.com/krishnareddydotnet/krconnects-ecommerce.git
     targetRevision: main
-    path: helm/ecommerce
-    helm:
-      valueFiles:
-        - values-data-api.yaml
+    path: k8s/docker-desktop/apps          # plain YAML folder (no Helm)
+    directory:
+      include: data-api.yaml               # only this service's file from the folder
   destination:
     server: https://kubernetes.default.svc
     namespace: default
@@ -21,7 +24,7 @@ spec:
       prune: true        # remove resources that were deleted from Git
       selfHeal: true     # undo manual changes made in the cluster
 ---
-# Argo CD Application: auth-api (deploys helm/ecommerce with values-auth-api.yaml from main)
+# Argo CD Application: auth-api (deploys the plain YAML k8s/docker-desktop/apps/auth-api.yaml from main)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -32,10 +35,9 @@ spec:
   source:
     repoURL: https://github.com/krishnareddydotnet/krconnects-ecommerce.git
     targetRevision: main
-    path: helm/ecommerce
-    helm:
-      valueFiles:
-        - values-auth-api.yaml
+    path: k8s/docker-desktop/apps          # plain YAML folder (no Helm)
+    directory:
+      include: auth-api.yaml               # only this service's file from the folder
   destination:
     server: https://kubernetes.default.svc
     namespace: default
@@ -44,7 +46,7 @@ spec:
       prune: true        # remove resources that were deleted from Git
       selfHeal: true     # undo manual changes made in the cluster
 ---
-# Argo CD Application: catalog-api (deploys helm/ecommerce with values-catalog-api.yaml from main)
+# Argo CD Application: catalog-api (deploys the plain YAML k8s/docker-desktop/apps/catalog-api.yaml from main)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -55,10 +57,9 @@ spec:
   source:
     repoURL: https://github.com/krishnareddydotnet/krconnects-ecommerce.git
     targetRevision: main
-    path: helm/ecommerce
-    helm:
-      valueFiles:
-        - values-catalog-api.yaml
+    path: k8s/docker-desktop/apps          # plain YAML folder (no Helm)
+    directory:
+      include: catalog-api.yaml               # only this service's file from the folder
   destination:
     server: https://kubernetes.default.svc
     namespace: default
@@ -67,7 +68,7 @@ spec:
       prune: true        # remove resources that were deleted from Git
       selfHeal: true     # undo manual changes made in the cluster
 ---
-# Argo CD Application: order-api (deploys helm/ecommerce with values-order-api.yaml from main)
+# Argo CD Application: order-api (deploys the plain YAML k8s/docker-desktop/apps/order-api.yaml from main)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -78,10 +79,9 @@ spec:
   source:
     repoURL: https://github.com/krishnareddydotnet/krconnects-ecommerce.git
     targetRevision: main
-    path: helm/ecommerce
-    helm:
-      valueFiles:
-        - values-order-api.yaml
+    path: k8s/docker-desktop/apps          # plain YAML folder (no Helm)
+    directory:
+      include: order-api.yaml               # only this service's file from the folder
   destination:
     server: https://kubernetes.default.svc
     namespace: default
@@ -90,10 +90,11 @@ spec:
       prune: true        # remove resources that were deleted from Git
       selfHeal: true     # undo manual changes made in the cluster
 ---
-# Argo CD Application: customer-portal (deploys helm/ecommerce with values-customer-portal.yaml from main)
-# WARNING: do not have this app and "customer-portal-canary" (canary-customer-portal.yaml) at the same time.
-# Both own sa/customer-portal, and this Helm Deployment would run next to the canary Rollout.
-# For the canary scenario delete this app first (k8s/docker-desktop/istio/scenarios/canary/README.md).
+# Argo CD Application: customer-portal (deploys the plain YAML k8s/docker-desktop/apps/customer-portal.yaml from main)
+# WARNING: do not have this app and "customer-portal-canary" (canary-customer-portal.yaml) or
+# "customer-portal-bluegreen" (bluegreen-customer-portal.yaml) at the same time.
+# All own sa/customer-portal, and this Deployment would run next to the scenario's Rollout.
+# For a scenario delete this app first (k8s/docker-desktop/istio/scenarios/canary/README.md or blue-green/README.md).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -104,10 +105,9 @@ spec:
   source:
     repoURL: https://github.com/krishnareddydotnet/krconnects-ecommerce.git
     targetRevision: main
-    path: helm/ecommerce
-    helm:
-      valueFiles:
-        - values-customer-portal.yaml
+    path: k8s/docker-desktop/apps          # plain YAML folder (no Helm)
+    directory:
+      include: customer-portal.yaml               # only this service's file from the folder
   destination:
     server: https://kubernetes.default.svc
     namespace: default
@@ -116,7 +116,7 @@ spec:
       prune: true        # remove resources that were deleted from Git
       selfHeal: true     # undo manual changes made in the cluster
 ---
-# Argo CD Application: admin-portal (deploys helm/ecommerce with values-admin-portal.yaml from main)
+# Argo CD Application: admin-portal (deploys the plain YAML k8s/docker-desktop/apps/admin-portal.yaml from main)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -127,10 +127,9 @@ spec:
   source:
     repoURL: https://github.com/krishnareddydotnet/krconnects-ecommerce.git
     targetRevision: main
-    path: helm/ecommerce
-    helm:
-      valueFiles:
-        - values-admin-portal.yaml
+    path: k8s/docker-desktop/apps          # plain YAML folder (no Helm)
+    directory:
+      include: admin-portal.yaml               # only this service's file from the folder
   destination:
     server: https://kubernetes.default.svc
     namespace: default
