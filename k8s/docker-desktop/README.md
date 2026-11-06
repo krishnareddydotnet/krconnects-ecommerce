@@ -1,11 +1,15 @@
 # Docker Desktop cluster configuration
 
-Configuration for the local Docker Desktop Kubernetes cluster that is NOT part of the Helm chart:
-Istio traffic and security rules, and the Argo CD Applications.
-Secrets are NOT here: create them with kubectl (see docs/local-and-aks.md).
+Everything for the local Docker Desktop Kubernetes cluster, as plain YAML (no Helm): the 6 apps, Istio traffic and
+security rules, and the Argo CD Applications that deploy them from Git. Images come from Docker Hub
+(`docker.io/ckreddy3030`); the pipelines `.github/workflows/docker-<service>-ci.yml` update the image lines through bot PRs.
+Secrets are NOT here: create them with kubectl (`docs/docker-desktop-setup.md`, A3).
+The Helm chart `helm/ecommerce` is no longer used on Docker Desktop (kept for reference; its pipelines are archived in
+`.github/workflows-archive-docker-helm/`).
 
 | Folder | What |
 |---|---|
+| `apps/<service>.yaml` | The 6 apps (data-api, auth-api, catalog-api, order-api, customer-portal, admin-portal): ServiceAccount, Deployment, Service, HPA, PodDisruptionBudget, NetworkPolicy per file. Image line updated by the `docker-<service>-ci.yml` bot PR |
 | `istio/common/authentication/peer-authentication.yaml` | STRICT mTLS for the `default` namespace (always applied) |
 | `istio/common/authorization-policies/` | Who may call each service, zero trust (always applied) |
 | `istio/monitoring/` | Prometheus, Grafana and Kiali through the gateway: https://prometheus.localhost, https://grafana.localhost, https://kiali.localhost (always applied) |
@@ -16,8 +20,9 @@ Secrets are NOT here: create them with kubectl (see docs/local-and-aks.md).
 | `monitoring/kube-prometheus-stack-values.yaml` | Helm values: Prometheus (7d, 10Gi), Grafana (login from secret `grafana-admin`) |
 | `monitoring/istio-monitors.yaml` | PodMonitor (every Envoy sidecar) + ServiceMonitor (istiod): how Prometheus scrapes Istio |
 | `monitoring/kiali-values.yaml` | Helm values: Kiali (anonymous, reads kube-prometheus-stack) |
-| `argocd/applications.yaml` | The 6 Argo CD Applications (Helm) |
-| `argocd/canary-customer-portal.yaml` | Argo CD Application `customer-portal-canary` (GitOps canary, plain YAML): apply only for the canary scenario, never together with the Helm app `customer-portal` (steps in `istio/scenarios/canary/README.md`) |
+| `argocd/applications.yaml` | The 6 Argo CD Applications: each deploys one `apps/<service>.yaml` (plain YAML) |
+| `argocd/canary-customer-portal.yaml` | Argo CD Application `customer-portal-canary` (GitOps canary, plain YAML): apply only for the canary scenario, never together with the basic app `customer-portal` (steps in `istio/scenarios/canary/README.md`) |
+| `argocd/bluegreen-customer-portal.yaml` | Argo CD Application `customer-portal-bluegreen` (blue-green, plain YAML): apply only for the blue-green scenario (steps in `istio/scenarios/blue-green/README.md`) |
 | `argocd/argocd-values.yaml` | Helm values: argocd-server insecure mode (TLS done by the gateway) |
 | `argocd/argocd-virtualservice.yaml` | https://argocd.localhost through the gateway |
 
@@ -71,6 +76,29 @@ kubectl apply -f k8s/docker-desktop/istio/monitoring/
 kubectl apply -f k8s/docker-desktop/argocd/argocd-virtualservice.yaml
 kubectl apply -f k8s/docker-desktop/argocd/applications.yaml
 ```
+
+`applications.yaml` makes Argo CD deploy `apps/<service>.yaml`. Without Argo CD, apply them yourself in
+dependency order (data-api first, the portals last):
+
+```powershell
+kubectl apply -f k8s/docker-desktop/apps/data-api.yaml
+kubectl apply -f k8s/docker-desktop/apps/auth-api.yaml
+kubectl apply -f k8s/docker-desktop/apps/catalog-api.yaml
+kubectl apply -f k8s/docker-desktop/apps/order-api.yaml
+kubectl apply -f k8s/docker-desktop/apps/customer-portal.yaml
+kubectl apply -f k8s/docker-desktop/apps/admin-portal.yaml
+kubectl get sa,deploy,svc,hpa,pdb,networkpolicy
+```
+
+Switching an existing cluster from the Helm apps to these files (one time): `docs/docker-desktop-setup.md`, A9.
+
+Notes on `apps/`:
+
+- 1 replica per service (laptop memory); the HPA can scale to 3 once metrics-server is installed (setup guide A8).
+- NetworkPolicy is only enforced if the cluster's network plugin supports it; the Istio AuthorizationPolicies
+  below are the rules that always apply. The policies also allow the Istio sidecar ports 15020/15021
+  (health probes, Prometheus), so they do not break anything where they are enforced.
+- Pod label `app.kubernetes.io/instance: <service>` must stay: the AuthorizationPolicies select it.
 
 Adding a new service: add its service account to the AuthorizationPolicy of every service it calls,
 and add an AuthorizationPolicy for the new service listing who may call it.

@@ -1,5 +1,5 @@
 # Canary scenario for customer-portal: ServiceAccount, Rollout, stable Service, canary Service.
-# Replaces the Helm Deployment of customer-portal (remove the Argo CD app "customer-portal" first).
+# Replaces the basic Deployment of customer-portal (remove the Argo CD app "customer-portal" first).
 # Prerequisite: Argo Rollouts controller (docs/docker-desktop-setup.md, B7).
 
 # ServiceAccount: same name as before, because auth-api, catalog-api and order-api

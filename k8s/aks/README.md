@@ -32,13 +32,14 @@ k8s/aks/
 
 ## Pipelines (GitHub Actions)
 
-- **Currently active** in `.github/workflows/` (the Docker Desktop pipelines are archived in `.github/workflows-archive-dockerdesktop/`;
-  only one set may be active, because both watch the same service folders). A copy is kept in `.github/workflows-archive-aks/`.
-  To switch, see the README in each archive folder.
+- **Currently archived** in `.github/workflows-archive-aks/` while Docker Desktop is the target (active:
+  `docker-<service>-ci.yml`, copy in `.github/workflows-archive-docker-raw/`; only one set may be active, because all sets
+  watch the same service folders). To switch, see the README in each archive folder.
 - One AKS pipeline per microservice (`aks-<service>-ci.yml`): build, test, push the image to ACR (`krconnectspractice.azurecr.io`),
   then update the image (tag + digest) in `k8s/aks/apps/<service>.yaml` through a bot PR.
 - A pipeline runs only when its own service folder changes (path filter).
-- The Docker Hub service pipelines (`<service>-ci.yml`) are archived in `.github/workflows-archive-dockerdesktop/` while AKS is the target.
+- Docker Desktop pipelines: `docker-<service>-ci.yml` (plain YAML, active now) and the older Helm set `<service>-ci.yml`
+  (archived in `.github/workflows-archive-docker-helm/`).
 - `secret-scan.yml` (required gitleaks check), `codeql.yml`, `terraform-ci.yml`, `snyk-security.yml`
   and `checkouttest.yml` stay in `.github/workflows/`.
 - Before the first deployment, run each AKS pipeline once so every file has a real image.

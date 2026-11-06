@@ -6,8 +6,8 @@
 # and Argo Rollouts starts the canary. Promote / abort in the Argo CD UI (Rollout resource -> three dots).
 #
 # Kept OUT of applications.yaml on purpose: apply it only for the canary scenario.
-# WARNING: never run this app at the same time as the Helm app "customer-portal". Both own
-# sa/customer-portal, and the Helm Deployment would run next to the Rollout. Delete the Helm app first.
+# WARNING: never run this app at the same time as the basic app "customer-portal". Both own
+# sa/customer-portal, and the basic Deployment would run next to the Rollout. Delete the basic app first.
 #
 # Apply: kubectl apply -f k8s/docker-desktop/argocd/canary-customer-portal.yaml
 apiVersion: argoproj.io/v1alpha1

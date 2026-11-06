@@ -1,6 +1,8 @@
-> **Note:** the AKS (ACR, plain YAML) pipelines are **active** (`.github/workflows/aks-<service>-ci.yml`).
-> The Docker Hub/Helm service pipelines described here are archived in `.github/workflows-archive-dockerdesktop/` while AKS is the target.
-> A copy of the AKS pipelines is kept in `.github/workflows-archive-aks/`. Switch steps: see the README in each folder.
+> **Note:** Docker Desktop now uses **plain YAML** (`k8s/docker-desktop/apps/`, see `k8s/docker-desktop/README.md`), and the
+> active pipelines are `.github/workflows/docker-<service>-ci.yml` (Docker Hub only; the bot PR updates the image line in
+> `k8s/docker-desktop/apps/<service>.yaml`). The Helm path described in this document (values files, `registries/*.yaml`,
+> variable `IMAGE_REGISTRY`) belongs to the archived pipelines in `.github/workflows-archive-docker-helm/`; it is kept for
+> reference. AKS pipelines: `.github/workflows-archive-aks/`. Switch steps: see the README in each archive folder.
 
 Every service runs in two places **without code changes**:
 
@@ -33,6 +35,7 @@ the CI last pushed. To pull from somewhere else, add one more `-f` file. **The l
 3. **Actions** → pick a service's workflow (e.g. *data api ci*) → **Run workflow** (branch `main`).
    Do this for each service you want rebuilt in the new registry.
 4. Each run opens a bot PR that updates `registry`, `tag` and `digest` in `values-<service>.yaml`. Merge it.
+   (Archived Helm pipelines. The active `docker-<service>-ci.yml` pipelines update `k8s/docker-desktop/apps/<service>.yaml` instead.)
    The customer-portal bot PR also updates the image in both Argo Rollouts manifests:
    `k8s/docker-desktop/istio/scenarios/canary/customer-portal/rollout.yaml` and
    `k8s/docker-desktop/istio/scenarios/blue-green/customer-portal/rollout.yaml` (only the active scenario's app deploys it).

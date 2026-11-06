@@ -1,0 +1,195 @@
+# -----------------------------------------------------------------------
+# data-api on Docker Desktop: the only service that talks to Azure SQL
+#
+# Tech stack : .NET 10, ASP.NET Core Web API, EF Core 10 (Azure SQL)
+# Port       : 8080
+# Runs as    : UID 1654 (app user of the .NET image ($APP_UID))
+# Objects    : ServiceAccount, Deployment, Service, HorizontalPodAutoscaler, PodDisruptionBudget, NetworkPolicy
+# Image      : Docker Hub (docker.io/ckreddy3030), updated by the docker-data-api-ci.yml bot PR
+# Secrets    : Kubernetes Secrets created with kubectl (never in Git): docs/docker-desktop-setup.md, A3
+#
+# Deployed by: Argo CD app "data-api" (k8s/docker-desktop/argocd/applications.yaml)
+# By hand    : kubectl apply -f k8s/docker-desktop/apps/data-api.yaml
+# -----------------------------------------------------------------------
+
+# ServiceAccount: the identity of the pod. Istio uses it as the caller identity in AuthorizationPolicies
+# (cluster.local/ns/default/sa/data-api), so the name must stay "data-api".
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: data-api
+  namespace: default
+# No Kubernetes API token in the pod: the app never calls the Kubernetes API.
+# (The Istio sidecar gets its own token through a separate volume, so mTLS still works.)
+automountServiceAccountToken: false
+---
+# Deployment: runs and updates the pods.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-api
+  namespace: default
+  labels:
+    app.kubernetes.io/name: data-api
+spec:
+  replicas: 1                    # laptop: 1 pod per service saves memory; the HPA can add up to 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: data-api   # which pods belong to this Deployment
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0           # never remove the old pod before the new one is ready (zero downtime)
+      maxSurge: 1                 # start one extra pod at a time during an update
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: data-api       # used by the selector above, Service, PDB and NetworkPolicy
+        app.kubernetes.io/instance: data-api   # the Istio AuthorizationPolicy for data-api selects this label
+    spec:
+      serviceAccountName: data-api
+      automountServiceAccountToken: false
+      securityContext:            # pod level: applies to every container
+        runAsNonRoot: true        # Kubernetes refuses to start the pod if it would run as root (UID 0)
+        runAsUser: 1654           # app user of the .NET image ($APP_UID)
+        seccompProfile:
+          type: RuntimeDefault    # block risky Linux system calls (container runtime default list)
+      containers:
+        - name: data-api
+          # CI replaces this whole line with <image>:<tag>@<digest> (docker-data-api-ci.yml bot PR). Do not edit it by hand.
+          image: docker.io/ckreddy3030/data-api:9467c61@sha256:630e64f9bfc43052b4e473635c89f2696cc9521647a61b138109d9436b9a823b
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          securityContext:        # container level
+            allowPrivilegeEscalation: false   # a process can never gain more privileges than it started with
+            readOnlyRootFilesystem: true      # nobody can change files in the image; writable paths are volumes below
+            capabilities:
+              drop: ["ALL"]       # remove all extra Linux privileges
+          env:
+            # Azure SQL connection string (Secret created with kubectl, docs/docker-desktop-setup.md A3)
+            - name: ConnectionStrings__DataDb
+              valueFrom:
+                secretKeyRef:
+                  name: data-api-secret       # created with kubectl create secret (not in Git)
+                  key: ConnectionStrings__DataDb
+          resources:
+            requests:             # reserved for the pod: used for scheduling and as the 100% base for the HPA
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi      # the pod is restarted (OOMKilled) above this; no CPU limit, so no throttling
+          livenessProbe:          # restart the container if this fails (process hung)
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:         # send traffic only while this succeeds (checks the Azure SQL connection)
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            # .NET runtime temp files (the app starts without it, but .NET expects a writable /tmp)
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi     # empty folder per pod, deleted with the pod
+---
+# Service: one stable name and IP (data-api:8080) in front of the pods. nginx.conf and the other services use this name.
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-api
+  namespace: default
+  labels:
+    app.kubernetes.io/name: data-api
+spec:
+  type: ClusterIP                # internal only; users come in through the Istio ingress gateway
+  selector:
+    app.kubernetes.io/name: data-api   # send traffic to the pods with this label
+  ports:
+    - name: http                 # Istio uses the port name to detect the protocol
+      port: 8080
+      targetPort: 8080
+---
+# HorizontalPodAutoscaler: adds pods when CPU is busy, removes them when it is quiet.
+# Needs metrics-server (not installed by default on Docker Desktop: docs/docker-desktop-setup.md, A8).
+# Without it "kubectl get hpa" shows <unknown> and nothing scales (the Deployment still runs).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: data-api
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: data-api
+  minReplicas: 1                 # same as the Deployment
+  maxReplicas: 3                 # laptop limit
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70   # target: 70% of the CPU request (50m) on average
+---
+# PodDisruptionBudget: during voluntary disruptions (node drain) keep at least 1 pod running.
+# With 1 replica this blocks "kubectl drain" until the HPA (or you) adds a second pod; set replicas: 2 to practise it.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: data-api
+  namespace: default
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: data-api
+---
+# NetworkPolicy: which pods may CONNECT to this service (ingress = incoming traffic).
+# On Docker Desktop it is only enforced if the cluster's network plugin supports NetworkPolicy; the Istio
+# AuthorizationPolicies (istio/common/authorization-policies/) are the rules that always apply here.
+# Egress (outgoing) is not restricted.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: data-api
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: data-api   # the pods this policy protects
+  policyTypes:
+    - Ingress
+  ingress:
+    # 1) The app port: only the allowed callers
+    - from:
+        # Only these services (pods in the same namespace with these labels)
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: auth-api
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: catalog-api
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: order-api
+      ports:
+        - protocol: TCP
+          port: 8080
+    # 2) Istio sidecar ports, from anywhere: the kubelet's health probes (Istio rewrites them to 15020),
+    #    the sidecar's own readiness (15021) and Prometheus scraping the merged metrics (15020).
+    #    They expose only health and metrics, never the app.
+    - ports:
+        - protocol: TCP
+          port: 15020
+        - protocol: TCP
+          port: 15021

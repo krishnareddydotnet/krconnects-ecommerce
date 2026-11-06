@@ -4,16 +4,16 @@ customer-portal can run in exactly ONE of three ways at a time. Each way is owne
 
 | Scenario | Argo CD app | Defined in | Workload | Shop route (`krconnects-virtualservice`) goes to | Release style |
 |---|---|---|---|---|---|
-| basic (rolling update) | `customer-portal` (Helm) | `k8s/docker-desktop/argocd/applications.yaml` | Deployment | `customer-portal` | Kubernetes rolling update: new pods replace old ones gradually |
+| basic (rolling update) | `customer-portal` (plain YAML `k8s/docker-desktop/apps/customer-portal.yaml`) | `k8s/docker-desktop/argocd/applications.yaml` | Deployment | `customer-portal` | Kubernetes rolling update: new pods replace old ones gradually |
 | canary | `customer-portal-canary` | `k8s/docker-desktop/argocd/canary-customer-portal.yaml` | Rollout (`canary`) | `customer-portal-stable` / `customer-portal-canary` with weights | 10% -> 25% -> 50% -> 75% -> 100%, Resume at each pause |
 | blue-green | `customer-portal-bluegreen` | `k8s/docker-desktop/argocd/bluegreen-customer-portal.yaml` | Rollout (`blueGreen`) | `customer-portal-active` | new version at full size on `customer-portal-preview`, Promote-Full switches 100% at once |
 
 Why only one at a time: all three create the ServiceAccount `customer-portal` (the backends only accept
-`cluster.local/ns/default/sa/customer-portal`) and the shop route. Two owners would fight over them, and a Helm
+`cluster.local/ns/default/sa/customer-portal`) and the shop route. Two owners would fight over them, and the basic
 Deployment would run next to a Rollout.
 
-The customer-portal pipeline's bot PR updates all three (Helm values file, canary `rollout.yaml`, blue-green
-`rollout.yaml`); only the scenario whose Argo CD app exists is deployed.
+The customer-portal pipeline's bot PR (`docker-customer-portal-ci.yml`) updates all three (`k8s/docker-desktop/apps/customer-portal.yaml`,
+canary `rollout.yaml`, blue-green `rollout.yaml`); only the scenario whose Argo CD app exists is deployed.
 
 Expect about 30-60 seconds of downtime on https://localhost during a switch: the old owner's objects are deleted
 before the new owner creates its own.
@@ -53,7 +53,7 @@ kubectl get deployment customer-portal                # NotFound
 kubectl apply -f k8s/docker-desktop/argocd/canary-customer-portal.yaml
 ```
 
-Removed: Helm Deployment, Service `customer-portal`, ServiceAccount. Created: Rollout (canary), Services
+Removed: Deployment, Service, ServiceAccount, HPA, PDB and NetworkPolicy `customer-portal` (basic app). Created: Rollout (canary), Services
 `customer-portal-stable` and `customer-portal-canary`, ServiceAccount, VirtualService with weights 100/0.
 
 ## basic -> blue-green
@@ -86,7 +86,7 @@ kubectl get rollout customer-portal                   # NotFound
 kubectl apply -f k8s/docker-desktop/argocd/canary-customer-portal.yaml
 ```
 
-## canary or blue-green -> basic (rolling update with Helm)
+## canary or blue-green -> basic (rolling update, plain YAML)
 
 ```powershell
 # 1. remove the Rollout scenario (use customer-portal-bluegreen if that one is active)
@@ -94,9 +94,9 @@ kubectl patch application customer-portal-canary -n argocd --type merge -p '{"me
 kubectl delete application customer-portal-canary -n argocd
 kubectl get rollout customer-portal                   # NotFound
 
-# 2. basic shop route (customer-portal Service) and the Helm app
+# 2. basic shop route (customer-portal Service) and the basic app
 kubectl apply -f k8s/docker-desktop/istio/scenarios/basic/virtualservice.yaml
-kubectl apply -f k8s/docker-desktop/argocd/applications.yaml   # recreates the Helm app customer-portal (the other 5 apps are unchanged)
+kubectl apply -f k8s/docker-desktop/argocd/applications.yaml   # recreates the app customer-portal (the other 5 apps are unchanged)
 kubectl get deployment customer-portal
 ```
 
