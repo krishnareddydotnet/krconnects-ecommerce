@@ -306,8 +306,8 @@ img.cart-thumb { width: 64px; height: 64px; }
 
 /* ---------- Promo banner (offer strip above the header) ---------- */
 .promo-banner {
-  /* Dark blue (was dark red for v3): makes the v4 release easy to spot */
-  background: #1E3A8A;
+  /* Dark green (was dark blue for v4): makes the v5 release easy to spot */
+  background: #166534;
   color: #FFFFFF;
   font-size: 13px;
   font-weight: 500;
