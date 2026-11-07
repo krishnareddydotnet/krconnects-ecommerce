@@ -1,0 +1,107 @@
+name: opa bundle
+
+# LEARNING EXAMPLE: builds the OPA policy bundle in opa/authz-bundle/.
+# MANUAL ONLY: runs when you click Actions -> opa bundle -> Run workflow. Never on push or pull_request.
+# Flow (how companies publish bundles): test -> build tar.gz -> upload to storage -> every OPA sidecar pulls it.
+on:
+  workflow_dispatch:
+    inputs:
+      upload_to_storage:
+        description: "Upload the bundle to the Azure storage account (DUMMY: stkrconnectspolicy does not exist yet, so leave false)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read # least privilege by default; the upload job adds id-token: write for itself only
+
+jobs:
+  # Job 1: quality checks on the policy code
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: opa/authz-bundle
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install OPA CLI
+        uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
+        with:
+          version: 1.22.2
+
+      # Fails if a .rego file is not formatted (fix locally with: opa fmt -w bundle/)
+      - name: opa fmt
+        run: opa fmt --list --fail bundle/
+
+      # Runs policy_test.rego (5 tests)
+      - name: opa test
+        run: opa test bundle/ -v
+
+  # Job 2: build the bundle (the tar.gz) and keep it as a downloadable artifact
+  build:
+    needs: test # only if the tests passed
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: opa/authz-bundle
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install OPA CLI
+        uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
+        with:
+          version: 1.22.2
+
+      # -b bundle/                  : treat the folder as a bundle (.manifest, folder paths -> data paths); also checks the Rego compiles
+      # --ignore "*_test.rego"      : do not ship the unit tests
+      # --revision <commit sha>     : version written into the bundle's .manifest (traceable to this commit)
+      # -o authz-bundle.tar.gz      : the output file
+      # (optional, real life: --signing-key <private key> adds .signatures.json so OPA can verify the bundle)
+      - name: opa build
+        run: opa build -b bundle/ --ignore "*_test.rego" --revision ${{ github.sha }} -o authz-bundle.tar.gz
+
+      - name: Show what is inside the bundle
+        run: tar -tzvf authz-bundle.tar.gz
+
+      # Download it from the run page (Artifacts) to look inside on your laptop
+      - name: Save bundle as artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: authz-bundle
+          path: opa/authz-bundle/authz-bundle.tar.gz
+
+  # Job 3: publish to the storage account (DUMMY values; only when you tick upload_to_storage)
+  upload:
+    needs: build
+    if: inputs.upload_to_storage
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC token for Azure login (no client secret)
+    steps:
+      - name: Download bundle artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: authz-bundle
+
+      # Needs (not created yet): identity with role "Storage Blob Data Contributor" on the container,
+      # federated credential for this repo, and the secret AZURE_POLICY_PUBLISH_CLIENT_ID.
+      - name: Azure login (OIDC)
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_POLICY_PUBLISH_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # --auth-mode login = use the Entra ID login above, no storage account keys
+      - name: Upload bundle to storage account (dummy names)
+        run: >
+          az storage blob upload
+          --account-name stkrconnectspolicy
+          --container-name bundles
+          --name authz/bundle.tar.gz
+          --file authz-bundle.tar.gz
+          --auth-mode login
+          --overwrite
