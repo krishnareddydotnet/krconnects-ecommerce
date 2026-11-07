@@ -1,0 +1,48 @@
+# Policy 4: containers must run as non-root (simplified idea of the library template "k8spspallowedusers", rule MustRunAsNonRoot).
+# Problem: root (UID 0) inside a container becomes root on the node if it ever escapes.
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srunasnonroot
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRunAsNonRoot
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            exemptContainers:
+              type: array
+              items:
+                type: string              # container names to skip, e.g. ["istio-init"] (needs root to set up traffic redirection)
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srunasnonroot
+
+        violation[{"msg": msg}] {
+          container := input_containers[_]
+          not exempt(container.name)
+          not runs_as_non_root(container)
+          msg := sprintf("container <%v> must set securityContext.runAsNonRoot: true (pod or container level)", [container.name])
+        }
+
+        # The container setting wins; if the container does not set it, the pod-level setting is used.
+        # object.get(object, path, default) reads a field and returns the default when it is missing.
+        runs_as_non_root(container) {
+          pod_value := object.get(input.review.object, ["spec", "securityContext", "runAsNonRoot"], false)
+          object.get(container, ["securityContext", "runAsNonRoot"], pod_value) == true
+        }
+
+        exempt(name) {
+          name == input.parameters.exemptContainers[_]
+        }
+
+        input_containers[c] {
+          c := input.review.object.spec.containers[_]
+        }
+        input_containers[c] {
+          c := input.review.object.spec.initContainers[_]
+        }

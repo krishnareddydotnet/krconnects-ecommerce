@@ -1,0 +1,25 @@
+# BAD 6: ':latest' tag -> violates no-latest-image-tag (the pod may show ImagePullBackOff in dryrun if the tag does not exist; only the policy result matters).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bad-6-latest-tag
+  namespace: gk-test
+  labels:
+    app: gk-demo
+    team: krconnects
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+  containers:
+    - name: app
+      image: docker.io/ckreddy3030/order-api:latest
+      securityContext:
+        privileged: false
+        allowPrivilegeEscalation: false
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 128Mi

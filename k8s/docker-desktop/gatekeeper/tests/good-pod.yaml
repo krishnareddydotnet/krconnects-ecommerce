@@ -1,0 +1,25 @@
+# GOOD: passes all 6 policies (our own order-api image, team label, non-root, not privileged, requests, pinned tag + digest).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: good-pod
+  namespace: gk-test
+  labels:
+    app: gk-demo
+    team: krconnects
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+  containers:
+    - name: app
+      image: docker.io/ckreddy3030/order-api:9cc713b@sha256:3516fb36add5d83b7a6f7b7b9c7a544bb871ed30b8b3848ea068c50f5a49a031
+      securityContext:
+        privileged: false
+        allowPrivilegeEscalation: false
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 128Mi

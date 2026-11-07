@@ -1,0 +1,43 @@
+# Policy 2: allowed image registries (simplified from the library template "k8sallowedrepos").
+# Problem: images from any registry skip our scan (Trivy) and signing (Cosign).
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8sallowedrepos
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sAllowedRepos
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            repos:
+              type: array
+              items:
+                type: string              # allowed image prefixes, e.g. "docker.io/ckreddy3030/"
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8sallowedrepos
+
+        violation[{"msg": msg}] {
+          container := input_containers[_]
+          not image_allowed(container.image)
+          msg := sprintf("container <%v> image <%v> is not from an allowed registry %v", [container.name, container.image, input.parameters.repos])
+        }
+
+        # Helper rule: true if the image starts with ANY allowed prefix
+        image_allowed(image) {
+          prefix := input.parameters.repos[_]
+          startswith(image, prefix)
+        }
+
+        # Check normal containers AND init containers (Istio adds an init container)
+        input_containers[c] {
+          c := input.review.object.spec.containers[_]
+        }
+        input_containers[c] {
+          c := input.review.object.spec.initContainers[_]
+        }

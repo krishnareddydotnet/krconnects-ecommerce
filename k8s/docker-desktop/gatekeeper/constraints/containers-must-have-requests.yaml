@@ -1,0 +1,14 @@
+# Uses template K8sRequiredResources (templates/k8srequiredresources.yaml).
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequiredResources
+metadata:
+  name: containers-must-have-requests
+spec:
+  enforcementAction: dryrun
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaces: ["gk-test"]
+  parameters:
+    requests: ["cpu", "memory"]

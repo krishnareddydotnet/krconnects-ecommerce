@@ -1,0 +1,26 @@
+# BAD 2: image from Docker Hub's public busybox, not our registry -> violates images-from-allowed-repos.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bad-2-not-allowed-repo
+  namespace: gk-test
+  labels:
+    app: gk-demo
+    team: krconnects
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+  containers:
+    - name: app
+      image: docker.io/library/busybox:1.37
+      command: ["sleep", "3600"]
+      securityContext:
+        privileged: false
+        allowPrivilegeEscalation: false
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 128Mi

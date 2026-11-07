@@ -1,0 +1,30 @@
+# Policy 5: CPU and memory requests required (simplified from the library template "k8srequiredresources").
+# Problem: without requests the scheduler cannot place pods fairly and the HPA cannot calculate CPU %.
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequiredresources
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequiredResources
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            requests:
+              type: array
+              items:
+                type: string              # required request types, e.g. ["cpu", "memory"]
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequiredresources
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          resource := input.parameters.requests[_]          # "cpu", then "memory"
+          not container.resources.requests[resource]        # ...missing on this container
+          msg := sprintf("container <%v> has no %v request (set resources.requests.%v)", [container.name, resource, resource])
+        }

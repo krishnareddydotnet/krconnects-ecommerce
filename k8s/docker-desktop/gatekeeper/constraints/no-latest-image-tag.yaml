@@ -1,0 +1,14 @@
+# Uses template K8sDisallowedTags (templates/k8sdisallowedtags.yaml).
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sDisallowedTags
+metadata:
+  name: no-latest-image-tag
+spec:
+  enforcementAction: dryrun
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaces: ["gk-test"]
+  parameters:
+    tags: ["latest"]
