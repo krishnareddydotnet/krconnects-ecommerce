@@ -24,6 +24,7 @@ Azure SQL (data) and Azure Blob Storage (product images) stay in Azure; only the
 | kube-prometheus-stack | prometheus-community/kube-prometheus-stack | 92.13.1 |
 | Kiali | kiali/kiali-server | 2.33.0 |
 | Argo Rollouts | argo/argo-rollouts | 2.43.8 |
+| OPA Gatekeeper (optional) | gatekeeper/gatekeeper | 3.23.1 |
 
 ---
 
@@ -328,6 +329,21 @@ It's installed and ready. customer-portal stays on basic. To switch to canary or
 ```powershell
 kubectl delete secret argocd-initial-admin-secret -n argocd
 ```
+
+---
+
+## Step 13 (optional): OPA Gatekeeper
+
+```powershell
+helm repo add gatekeeper https://open-policy-agent.github.io/gatekeeper/charts
+helm repo update
+helm install gatekeeper gatekeeper/gatekeeper --namespace gatekeeper-system --create-namespace --version 3.23.1
+kubectl apply -f k8s/docker-desktop/gatekeeper/monitoring/gatekeeper-podmonitor.yaml
+kubectl get pods -n gatekeeper-system
+```
+
+**Check:** `gatekeeper-controller-manager-...` and `gatekeeper-audit-...` pods are `Running`.
+Policies (templates and constraints) and their steps: `k8s/docker-desktop/gatekeeper/README.md`.
 
 ---
 

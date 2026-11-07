@@ -1,0 +1,16 @@
+# PodMonitor: tells Prometheus (kube-prometheus-stack) to scrape Gatekeeper's metrics.
+# Both Gatekeeper pods (controller-manager = admission webhook, audit = scans existing objects)
+# carry the label gatekeeper.sh/system: "yes" and serve Prometheus metrics on the port named "metrics" (8888).
+# kube-prometheus-stack picks up monitors from every namespace (podMonitorSelectorNilUsesHelmValues: false).
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: gatekeeper
+  namespace: gatekeeper-system
+spec:
+  selector:
+    matchLabels:
+      gatekeeper.sh/system: "yes"     # controller-manager and audit pods
+  podMetricsEndpoints:
+    - port: metrics                   # named container port 8888
+      path: /metrics

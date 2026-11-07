@@ -3,7 +3,7 @@
 Use this guide to rebuild the whole local environment after a fresh Docker Desktop install.
 
 - **Part A**: base platform and the app (no Istio). Ends when the customer portal works through port-forward.
-- **Part B**: service mesh (Istio): gateway, mTLS, AuthorizationPolicies.
+- **Part B**: service mesh (Istio): gateway, mTLS, AuthorizationPolicies; monitoring, Argo Rollouts, OPA Gatekeeper.
 - **Part C**: troubleshooting (real issues we hit).
 
 Azure SQL (data) and Azure Blob Storage (product images) stay in Azure; only the cluster is local.
@@ -466,6 +466,29 @@ Promote / abort a running rollout:
 
 Remove: `helm uninstall argo-rollouts -n argo-rollouts` (delete the Rollouts first; the CRDs stay and are
 removed with `kubectl delete crd rollouts.argoproj.io analysistemplates.argoproj.io analysisruns.argoproj.io experiments.argoproj.io clusteranalysistemplates.argoproj.io`).
+
+---
+
+## B8. OPA Gatekeeper (policy as code)
+
+Gatekeeper runs OPA as a validating admission webhook: every create/update is checked against your
+Rego policies (ConstraintTemplates + Constraints) and allowed or denied. Hands-on before AKS, where the
+Azure Policy add-on installs Gatekeeper for you.
+
+| Helm release | Chart (version) | Namespace |
+|---|---|---|
+| gatekeeper | gatekeeper/gatekeeper (3.23.1) | gatekeeper-system |
+
+```powershell
+helm repo add gatekeeper https://open-policy-agent.github.io/gatekeeper/charts
+helm repo update
+helm install gatekeeper gatekeeper/gatekeeper --namespace gatekeeper-system --create-namespace --version 3.23.1
+kubectl get pods -n gatekeeper-system                # gatekeeper-controller-manager-... and gatekeeper-audit-... Running
+kubectl apply -f k8s/docker-desktop/gatekeeper/monitoring/gatekeeper-podmonitor.yaml   # metrics in Prometheus/Grafana (needs B6)
+```
+
+Nothing is enforced until a ConstraintTemplate and a Constraint are applied. Basics, policies, monitoring,
+uninstall: `k8s/docker-desktop/gatekeeper/README.md`.
 
 ---
 

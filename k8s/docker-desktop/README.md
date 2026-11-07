@@ -20,6 +20,7 @@ The Helm chart `helm/ecommerce` is no longer used on Docker Desktop (kept for re
 | `monitoring/kube-prometheus-stack-values.yaml` | Helm values: Prometheus (7d, 10Gi), Grafana (login from secret `grafana-admin`) |
 | `monitoring/istio-monitors.yaml` | PodMonitor (every Envoy sidecar) + ServiceMonitor (istiod): how Prometheus scrapes Istio |
 | `monitoring/kiali-values.yaml` | Helm values: Kiali (anonymous, reads kube-prometheus-stack) |
+| `gatekeeper/` | OPA Gatekeeper hands-on: Helm install, PodMonitor, ConstraintTemplates and Constraints (setup guide B8, details in `gatekeeper/README.md`) |
 | `argocd/applications.yaml` | The 6 Argo CD Applications: each deploys one `apps/<service>.yaml` (plain YAML) |
 | `argocd/canary-customer-portal.yaml` | Argo CD Application `customer-portal-canary` (GitOps canary, plain YAML): apply only for the canary scenario, never together with the basic app `customer-portal` (steps in `istio/scenarios/canary/README.md`) |
 | `argocd/bluegreen-customer-portal.yaml` | Argo CD Application `customer-portal-bluegreen` (blue-green, plain YAML): apply only for the blue-green scenario (steps in `istio/scenarios/blue-green/README.md`) |
