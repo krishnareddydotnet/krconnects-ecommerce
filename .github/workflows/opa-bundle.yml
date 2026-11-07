@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       upload_to_storage:
-        description: "Upload the bundle to the Azure storage account (DUMMY: stkrconnectspolicy does not exist yet, so leave false)"
+        description: "Upload the bundle to storage account stkrconnectspolicy001 (run from main: the OIDC trust only allows main)"
         type: boolean
         default: false
 
@@ -72,7 +72,9 @@ jobs:
           name: authz-bundle
           path: opa/authz-bundle/authz-bundle.tar.gz
 
-  # Job 3: publish to the storage account (DUMMY values; only when you tick upload_to_storage)
+  # Job 3: publish to the storage account stkrconnectspolicy001 (only when you tick upload_to_storage)
+  # Azure setup (done once, see opa/authz-bundle/README.md): private container "bundles", firewall default Deny,
+  # identity id-github-opa-bundle-publish with OIDC trust for this repo on main, roles on the account/container.
   upload:
     needs: build
     if: inputs.upload_to_storage
@@ -80,14 +82,15 @@ jobs:
     permissions:
       contents: read
       id-token: write # OIDC token for Azure login (no client secret)
+    env:
+      RESOURCE_GROUP: rg-krconnects-practice-cin-001
+      STORAGE_ACCOUNT: stkrconnectspolicy001
     steps:
       - name: Download bundle artifact
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: authz-bundle
 
-      # Needs (not created yet): identity with role "Storage Blob Data Contributor" on the container,
-      # federated credential for this repo, and the secret AZURE_POLICY_PUBLISH_CLIENT_ID.
       - name: Azure login (OIDC)
         uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
@@ -95,13 +98,39 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # --auth-mode login = use the Entra ID login above, no storage account keys
-      - name: Upload bundle to storage account (dummy names)
+      # The storage firewall only allows listed IPs. GitHub runners get a different public IP every run,
+      # so the job allows its own IP just for the upload and removes it again in the last step.
+      - name: Allow this runner's IP in the storage firewall
+        run: |
+          RUNNER_IP=$(curl -s https://api.ipify.org)
+          echo "RUNNER_IP=$RUNNER_IP" >> "$GITHUB_ENV"
+          echo "Runner IP: $RUNNER_IP"
+          az storage account network-rule add --resource-group "$RESOURCE_GROUP" --account-name "$STORAGE_ACCOUNT" --ip-address "$RUNNER_IP" --output none
+          # Firewall changes take a few seconds to apply
+          sleep 30
+
+      # --auth-mode login = use the Entra ID login above (shared keys are disabled on this account)
+      - name: Upload bundle to storage account
         run: >
           az storage blob upload
-          --account-name stkrconnectspolicy
+          --account-name "$STORAGE_ACCOUNT"
           --container-name bundles
           --name authz/bundle.tar.gz
           --file authz-bundle.tar.gz
           --auth-mode login
           --overwrite
+
+      - name: Show the uploaded bundle
+        run: >
+          az storage blob show
+          --account-name "$STORAGE_ACCOUNT"
+          --container-name bundles
+          --name authz/bundle.tar.gz
+          --auth-mode login
+          --query "{name:name, size:properties.contentLength, lastModified:properties.lastModified}"
+          --output table
+
+      # Runs even if an earlier step failed, so the runner's IP never stays in the firewall
+      - name: Remove this runner's IP from the storage firewall
+        if: always() && env.RUNNER_IP != ''
+        run: az storage account network-rule remove --resource-group "$RESOURCE_GROUP" --account-name "$STORAGE_ACCOUNT" --ip-address "$RUNNER_IP" --output none
