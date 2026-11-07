@@ -1,0 +1,4 @@
+{
+  "admin_paths": ["/admin/orders", "/admin/products"],
+  "public_paths": ["/products", "/health/live", "/health/ready"]
+}

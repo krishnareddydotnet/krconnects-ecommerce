@@ -104,5 +104,6 @@ Secrets are never stored in Git. They are created directly in the cluster
 | GitOps | Argo CD |
 | Service mesh / ingress | Istio |
 | Infrastructure as Code | Terraform (`infra/terraform`) |
+| Policy as code | OPA Gatekeeper on Docker Desktop (`k8s/docker-desktop/gatekeeper/`), example OPA policy bundle for API authorization (`opa/authz-bundle/`), Azure Policy for AKS and Azure resources (repo `krconnects-policy`) |
 
 How to run on Docker Desktop or AKS and switch the registry: `docs/local-and-aks.md`.
