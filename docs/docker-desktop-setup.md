@@ -487,7 +487,8 @@ kubectl get pods -n gatekeeper-system                # gatekeeper-controller-man
 kubectl apply -f k8s/docker-desktop/gatekeeper/monitoring/gatekeeper-podmonitor.yaml   # metrics in Prometheus/Grafana (needs B6)
 ```
 
-Nothing is enforced until a ConstraintTemplate and a Constraint are applied. Basics, policies, monitoring,
+Nothing is enforced until a ConstraintTemplate and a Constraint are applied. 6 policies (required label,
+allowed registries, no privileged, non-root, requests, no `:latest`) with test pods, basics, monitoring and
 uninstall: `k8s/docker-desktop/gatekeeper/README.md`.
 
 ---

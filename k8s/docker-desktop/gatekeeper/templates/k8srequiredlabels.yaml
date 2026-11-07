@@ -1,0 +1,31 @@
+# Policy 1: required labels (simplified from the Gatekeeper library template "k8srequiredlabels").
+# Problem: objects without an owner label -> nobody knows which team runs or pays for them.
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequiredlabels                 # must be the lowercase of spec.crd.spec.names.kind
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequiredLabels           # the new resource type Constraints use
+      validation:
+        openAPIV3Schema:                  # parameters a Constraint can pass in
+          type: object
+          properties:
+            labels:
+              type: array
+              items:
+                type: string              # label names, e.g. ["team"]
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequiredlabels
+
+        # input.review.object = the object being applied, input.parameters = values from the Constraint.
+        # A violation is reported when every line in the rule body is true.
+        violation[{"msg": msg}] {
+          required := input.parameters.labels[_]              # each required label name
+          not input.review.object.metadata.labels[required]   # ...that the object does not have
+          msg := sprintf("missing required label: %v", [required])
+        }

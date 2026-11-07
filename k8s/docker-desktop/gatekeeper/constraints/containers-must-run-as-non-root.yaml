@@ -1,0 +1,14 @@
+# Uses template K8sRunAsNonRoot (templates/k8srunasnonroot.yaml).
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRunAsNonRoot
+metadata:
+  name: containers-must-run-as-non-root
+spec:
+  enforcementAction: dryrun
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaces: ["gk-test"]
+  parameters:
+    exemptContainers: ["istio-init"]   # Istio's init container needs root (only present in injected namespaces)

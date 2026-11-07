@@ -1,0 +1,24 @@
+# BAD 4: no runAsNonRoot and runAsUser 0 (root) -> violates containers-must-run-as-non-root.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bad-4-runs-as-root
+  namespace: gk-test
+  labels:
+    app: gk-demo
+    team: krconnects
+spec:
+  securityContext:
+    runAsUser: 0
+  containers:
+    - name: app
+      image: docker.io/ckreddy3030/order-api:9cc713b@sha256:3516fb36add5d83b7a6f7b7b9c7a544bb871ed30b8b3848ea068c50f5a49a031
+      securityContext:
+        privileged: false
+        allowPrivilegeEscalation: false
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 128Mi

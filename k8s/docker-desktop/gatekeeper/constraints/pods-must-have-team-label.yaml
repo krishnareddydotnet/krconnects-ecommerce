@@ -1,0 +1,14 @@
+# Uses template K8sRequiredLabels (templates/k8srequiredlabels.yaml).
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequiredLabels
+metadata:
+  name: pods-must-have-team-label
+spec:
+  enforcementAction: dryrun        # dryrun = report only; change to deny to block
+  match:
+    kinds:
+      - apiGroups: [""]            # "" = core API group (Pod, Service, Namespace ...)
+        kinds: ["Pod"]
+    namespaces: ["gk-test"]        # test namespace only, so the shop in "default" is not affected
+  parameters:
+    labels: ["team"]

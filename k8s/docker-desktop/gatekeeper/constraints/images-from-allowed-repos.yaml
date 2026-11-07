@@ -1,0 +1,16 @@
+# Uses template K8sAllowedRepos (templates/k8sallowedrepos.yaml).
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sAllowedRepos
+metadata:
+  name: images-from-allowed-repos
+spec:
+  enforcementAction: dryrun
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaces: ["gk-test"]
+  parameters:
+    repos:
+      - "docker.io/ckreddy3030/"   # our app images (built, scanned and signed by our pipelines)
+      - "docker.io/istio/"         # Istio sidecars injected into app pods (needed when used on "default")

@@ -1,0 +1,24 @@
+# BAD 1: no 'team' label -> violates pods-must-have-team-label (everything else is fine).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bad-1-no-team-label
+  namespace: gk-test
+  labels:
+    app: gk-demo
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+  containers:
+    - name: app
+      image: docker.io/ckreddy3030/order-api:9cc713b@sha256:3516fb36add5d83b7a6f7b7b9c7a544bb871ed30b8b3848ea068c50f5a49a031
+      securityContext:
+        privileged: false
+        allowPrivilegeEscalation: false
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
