@@ -1,7 +1,7 @@
 # OPA policy bundle example (API authorization)
 
-**Learning example only.** Shows what an OPA policy bundle is, what is inside it, and how a pipeline builds and
-publishes it. Not wired into any service; nothing in the cluster uses it.
+**Learning example.** Shows what an OPA policy bundle is, what is inside it, and how a pipeline builds it and
+publishes it to a real (private) Azure storage account. Not wired into any service yet; nothing in the cluster uses it.
 
 Different from Gatekeeper (`k8s/docker-desktop/gatekeeper/`):
 
@@ -70,36 +70,70 @@ tar -tzvf authz-bundle.tar.gz                                                   
 
 ## 5. Pipeline: `.github/workflows/opa-bundle.yml`
 
-**Manual only** (Actions -> opa bundle -> Run workflow); never runs on push or pull request.
+**Manual only** (Actions -> opa bundle -> Run workflow, branch **main**); never runs on push or pull request.
 
 | Job | Steps |
 |---|---|
 | test | install OPA 1.22.2 -> `opa fmt --list --fail` -> `opa test` |
 | build | `opa build` (revision = commit SHA, tests ignored) -> list the tar.gz contents -> save it as artifact `authz-bundle` (download from the run page) |
-| upload | only if you tick **upload_to_storage**: OIDC login -> `az storage blob upload --auth-mode login` to `stkrconnectspolicy/bundles/authz/bundle.tar.gz` |
+| upload | only if you tick **upload_to_storage**: OIDC login -> allow the runner's IP in the storage firewall -> `az storage blob upload --auth-mode login` to `stkrconnectspolicy001/bundles/authz/bundle.tar.gz` -> show the blob -> **always** remove the runner's IP |
 
-The storage account is a **dummy** (`stkrconnectspolicy` does not exist): leave **upload_to_storage** unticked.
-To make it real you would need: the storage account and a private container `bundles`, a managed identity with
-**Storage Blob Data Contributor** on that container, a federated credential for this repo, and the repo secret
-`AZURE_POLICY_PUBLISH_CLIENT_ID`.
+Why the firewall steps: the storage firewall allows only listed IPs (your laptop), and GitHub-hosted runners get a new
+public IP every run. Production avoids this with a self-hosted runner inside the Azure VNet and a private endpoint.
 
-## 6. How OPA would download it (real life, not deployed here)
+## 6. Azure setup (done once, practice environment)
 
-Each OPA instance gets a small config file that says where the bundle is and how often to check (simplified, dummy values;
-see the OPA docs on bundles and service authentication for the exact Azure Blob settings):
+| Resource | Name / setting |
+|---|---|
+| Storage account | `stkrconnectspolicy001` in `rg-krconnects-practice-cin-001` (Central India, Standard LRS) |
+| Security | HTTPS only, TLS 1.2, no public blob access, **shared keys disabled** (Entra ID only), firewall default **Deny** + laptop IP |
+| Container | `bundles` (private) |
+| Pipeline identity | user-assigned managed identity `id-github-opa-bundle-publish`, federated credential for this repo on `main` (OIDC, no secret) |
+| Roles of that identity | **Storage Blob Data Contributor** on the `bundles` container (upload); **Storage Account Contributor** on the account (add/remove the runner IP; production: a custom role with only that permission) |
+| GitHub secret | `AZURE_POLICY_PUBLISH_CLIENT_ID` = the identity's client ID (`AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` already exist) |
+
+Commands used (PowerShell, from any folder):
+
+```powershell
+az storage account create --name stkrconnectspolicy001 --resource-group rg-krconnects-practice-cin-001 --location centralindia --sku Standard_LRS --kind StorageV2 --https-only true --min-tls-version TLS1_2 --allow-blob-public-access false --allow-shared-key-access false --default-action Deny --tags environment=practice project=krconnects owner=krishna
+Invoke-RestMethod https://api.ipify.org                                   # your laptop's public IP
+az storage account network-rule add --resource-group rg-krconnects-practice-cin-001 --account-name stkrconnectspolicy001 --ip-address <your-ip>
+az storage container-rm create --resource-group rg-krconnects-practice-cin-001 --storage-account stkrconnectspolicy001 --name bundles --public-access off
+az identity create --name id-github-opa-bundle-publish --resource-group rg-krconnects-practice-cin-001 --location centralindia
+az identity federated-credential create --name fc-github-krconnects-ecommerce-main --identity-name id-github-opa-bundle-publish --resource-group rg-krconnects-practice-cin-001 --issuer https://token.actions.githubusercontent.com --subject "repo:krishnareddydotnet@146734987/krconnects-ecommerce@1435447827:ref:refs/heads/main" --audiences api://AzureADTokenExchange
+az identity show --name id-github-opa-bundle-publish --resource-group rg-krconnects-practice-cin-001 --query "{clientId:clientId, principalId:principalId}" --output table
+az role assignment create --assignee-object-id <principalId> --assignee-principal-type ServicePrincipal --role "Storage Blob Data Contributor" --scope /subscriptions/<subscriptionId>/resourceGroups/rg-krconnects-practice-cin-001/providers/Microsoft.Storage/storageAccounts/stkrconnectspolicy001/blobServices/default/containers/bundles
+az role assignment create --assignee-object-id <principalId> --assignee-principal-type ServicePrincipal --role "Storage Account Contributor" --scope /subscriptions/<subscriptionId>/resourceGroups/rg-krconnects-practice-cin-001/providers/Microsoft.Storage/storageAccounts/stkrconnectspolicy001
+```
+
+If your laptop's public IP changes, add the new one (and remove the old one) with `az storage account network-rule add/remove`.
+
+Check the uploaded bundle from your laptop (your own account needs a data role, e.g. **Storage Blob Data Reader** on the container,
+because shared keys are disabled):
+
+```powershell
+az storage blob list --account-name stkrconnectspolicy001 --container-name bundles --auth-mode login --query "[].{name:name, size:properties.contentLength, lastModified:properties.lastModified}" --output table
+```
+
+Cost: a Standard LRS account with one small file costs close to nothing. Clean up: `az storage account delete --name stkrconnectspolicy001 --resource-group rg-krconnects-practice-cin-001`
+and `az identity delete --name id-github-opa-bundle-publish --resource-group rg-krconnects-practice-cin-001`.
+
+## 6.1 How OPA downloads it (next step: OPA in Docker Desktop)
+
+Each OPA instance gets a small config file that says where the bundle is and how often to check (simplified;
+see the OPA docs on bundles and service authentication for the exact Azure Blob settings). On Docker Desktop
+there is no managed identity, so OPA will use a short-lived read-only SAS token from a Kubernetes Secret; on AKS, Workload Identity.
 
 ```yaml
 services:
   policy-storage:
-    url: https://stkrconnectspolicy.blob.core.windows.net
-    credentials:
-      azure_managed_identity: {}          # OPA logs in with the pod's managed identity (no keys)
+    url: https://stkrconnectspolicy001.blob.core.windows.net
 bundles:
   authz:
     service: policy-storage
-    resource: bundles/authz/bundle.tar.gz
+    resource: bundles/authz/bundle.tar.gz   # + read-only SAS token (Docker Desktop) or managed identity (AKS)
     polling:
-      min_delay_seconds: 60               # check for a new revision every 60-120 s
+      min_delay_seconds: 60                 # check for a new revision every 60-120 s
       max_delay_seconds: 120
 ```
 
