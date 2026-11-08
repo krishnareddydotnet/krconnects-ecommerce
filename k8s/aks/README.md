@@ -19,6 +19,7 @@ k8s/aks/
 │   └── jwt-key-kv.yaml    Key Vault "jwt-key"            -> Secret auth-api-secret / Jwt__Key
 ├── istio/         managed Istio (asm-1-30): Gateway, VirtualService, STRICT mTLS, AuthorizationPolicies   [present]
 ├── kyverno/       Kyverno: only images signed by our AKS pipelines may run (Cosign keyless)     [present]
+├── pv-lab/        hands-on lab: StorageClass, PVC, PV with Azure Files (namespace pv-lab)      [present]
 └── argocd/        Argo CD Applications (if deployed with GitOps)                                    [later]
 ```
 
