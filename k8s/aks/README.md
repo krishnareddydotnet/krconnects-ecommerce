@@ -18,6 +18,7 @@ k8s/aks/
 │   ├── data-api-kv.yaml   Key Vault "data-db-connection" -> Secret data-api-secret / ConnectionStrings__DataDb
 │   └── jwt-key-kv.yaml    Key Vault "jwt-key"            -> Secret auth-api-secret / Jwt__Key
 ├── istio/         managed Istio (asm-1-30): Gateway, VirtualService, STRICT mTLS, AuthorizationPolicies   [present]
+├── kyverno/       Kyverno: only images signed by our AKS pipelines may run (Cosign keyless)     [present]
 └── argocd/        Argo CD Applications (if deployed with GitOps)                                    [later]
 ```
 
@@ -61,6 +62,7 @@ k8s/aks/
 | `seccompProfile: RuntimeDefault` | Limits risky Linux system calls |
 | `automountServiceAccountToken: false` | No Kubernetes API token inside the pod unless it needs one |
 | Image by digest (`@sha256:...`) | Runs exactly the image that was scanned and signed; a tag can be moved |
+| Cosign signature verified at admission (Kyverno) | Only images signed by our `aks-<service>-ci.yml` on `main` can run (`kyverno/README.md`) |
 | Secrets from Key Vault (Workload Identity + CSI) | No secret values in Git or in YAML |
 | Resource requests and limits | One pod cannot starve the others; needed for scheduling and HPA |
 

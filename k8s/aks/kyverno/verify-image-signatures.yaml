@@ -1,0 +1,51 @@
+# Only images signed by OUR GitHub Actions pipelines may run in the "default" namespace.
+#
+# How the signature gets there: each aks-<service>-ci.yml signs the image with Cosign "keyless"
+# (no key file): GitHub gives the workflow an OIDC token, Sigstore Fulcio turns it into a short-lived
+# certificate that names the workflow, and the signature is logged in the public Rekor log.
+#
+# What Kyverno checks when a pod is created:
+#   1. The image comes from our ACR (krconnectspractice.azurecr.io).
+#   2. A Cosign signature exists for that exact digest.
+#   3. The certificate was issued to one of our aks-<service>-ci.yml workflows on the main branch,
+#      by GitHub's OIDC issuer. A signature from anyone else (or no signature) fails.
+#
+# Start with failureAction: Audit (only reports), check the PolicyReports, then switch to Enforce (blocks).
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-image-signatures
+  annotations:
+    policies.kyverno.io/title: Verify image signatures (Cosign keyless)
+    policies.kyverno.io/description: >-
+      Pods in the default namespace may only use ACR images signed by the repo's AKS CI workflows.
+spec:
+  background: false                 # check at admission time only (signature checks call the registry)
+  webhookTimeoutSeconds: 30         # signature lookups can take a few seconds
+  rules:
+    - name: verify-cosign-keyless
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - default           # our app namespace
+      verifyImages:
+        - imageReferences:
+            - "krconnectspractice.azurecr.io/*"   # every image from our ACR
+          failureAction: Audit      # Audit = report only. Change to Enforce to block unsigned images.
+          mutateDigest: false       # our manifests already pin images by digest; don't rewrite pods
+          verifyDigest: true        # the image must be referenced by digest (@sha256:...)
+          required: true            # an image from our ACR without a valid signature fails
+          imageRegistryCredentials:
+            providers:
+              - azure               # log in to ACR with the pod's Azure identity (Workload Identity)
+          attestors:
+            - entries:
+                - keyless:
+                    issuer: "https://token.actions.githubusercontent.com"
+                    # The workflow that signed: aks-<service>-ci.yml on main in this repo
+                    subjectRegExp: "^https://github\\.com/krishnareddydotnet/krconnects-ecommerce/\\.github/workflows/aks-[a-z-]+-ci\\.yml@refs/heads/main$"
+                    rekor:
+                      url: "https://rekor.sigstore.dev"   # public transparency log the CI signature was written to

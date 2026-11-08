@@ -1,0 +1,21 @@
+# Helm values for Kyverno on AKS (chart kyverno/kyverno 3.9.2 = Kyverno v1.19.2).
+# Kyverno checks the Cosign signature of every app image when a pod is created.
+# To read signatures from our private ACR, the admission controller logs in to Azure with
+# Workload Identity (managed identity "id-kyverno-acr-pull", role AcrPull). No passwords anywhere.
+
+admissionController:
+  rbac:
+    serviceAccount:
+      annotations:
+        # Client ID of the managed identity "id-kyverno-acr-pull" (README step 2 prints it).
+        # A client ID is not a secret: it only says WHICH identity to use; the federated credential proves it.
+        azure.workload.identity/client-id: "6d4d1ed6-646b-4a00-9e80-c7ddbb66b6a8"
+  # The Workload Identity webhook only injects the Azure token into pods with this label
+  podLabels:
+    azure.workload.identity/use: "true"
+
+config:
+  # AKS "admissions enforcer" removes webhooks it doesn't trust; this annotation keeps Kyverno's webhooks.
+  # (It is the chart default too; written here so it is visible.)
+  webhookAnnotations:
+    admissions.enforcer/disabled: "true"
