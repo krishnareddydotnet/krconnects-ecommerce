@@ -1,0 +1,18 @@
+# customer-portal: only the Istio ingress gateway may call it (users come in through the gateway).
+# ALLOW policy = only the callers listed below may call this service; everyone else is denied.
+# Callers are identified by their service account (verified through mTLS).
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: customer-portal
+  namespace: default
+spec:
+  action: ALLOW
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: customer-portal   # AKS pods use this label (Docker Desktop uses app.kubernetes.io/instance)
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/aks-istio-ingress/sa/aks-istio-ingressgateway-external   # AKS managed Istio external ingress gateway

@@ -1,0 +1,13 @@
+# Mutual TLS (mTLS) for every pod in the "default" namespace (AKS managed Istio, asm-1-30).
+# Without this file Istio runs in PERMISSIVE mode: sidecars accept mTLS AND plain-text traffic.
+# STRICT = pods only accept encrypted traffic from other mesh pods (with a sidecar).
+# It also gives every pod a verified identity (its service account), which the
+# AuthorizationPolicies use to decide who may call whom.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: default
+spec:
+  mtls:
+    mode: STRICT
