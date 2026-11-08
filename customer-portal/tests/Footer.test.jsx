@@ -11,9 +11,9 @@ describe('Footer', () => {
     expect(screen.getByText(`· v${version}`, { exact: false })).toBeInTheDocument();
   });
 
-  it('shows release 1.10.0 (canary v2)', () => {
+  it('shows release 1.11.0 (search suggestions)', () => {
     render(<Footer />);
 
-    expect(screen.getByText('· v1.10.0', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText('· v1.11.0', { exact: false })).toBeInTheDocument();
   });
 });

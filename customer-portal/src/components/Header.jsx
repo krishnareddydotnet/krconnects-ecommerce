@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import SearchBox from './SearchBox.jsx';
 
 // Header: logo, search box, login/sign up (or welcome + log out), cart button.
 function Header({ searchText, onSearchChange, currentUser, cartCount, onLoginClick, onSignupClick, onLogout }) {
@@ -10,21 +11,8 @@ function Header({ searchText, onSearchChange, currentUser, cartCount, onLoginCli
           <span className="tagline">e-commerce</span>
         </Link>
 
-        {/* Search: every key press updates searchText in App */}
-        <form className="search" role="search" onSubmit={(e) => e.preventDefault()}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="7"></circle>
-            <path d="M20 20l-3.5-3.5"></path>
-          </svg>
-          <label htmlFor="search-input" className="visually-hidden">Search products</label>
-          <input
-            id="search-input"
-            type="search"
-            placeholder="Search by name or category"
-            value={searchText}
-            onChange={(e) => onSearchChange(e.target.value)}
-          />
-        </form>
+        {/* Search box + suggestions dropdown (every key press still updates searchText in App) */}
+        <SearchBox searchText={searchText} onSearchChange={onSearchChange} />
 
         <div className="header-actions">
           {/* Show different buttons for logged-in and logged-out users */}

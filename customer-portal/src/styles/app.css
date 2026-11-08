@@ -332,3 +332,31 @@ img.cart-thumb { width: 64px; height: 64px; }
   transition: background 0.15s;
 }
 .card .card-remove-btn:hover { background: #FEF2F2; }
+
+/* ---------- Search suggestions (dropdown under the header search box) ---------- */
+.search-box { flex: 1 1 300px; position: relative; }   /* takes the search's place in the header row */
+.suggestions {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20;
+  background: #FFFFFF; border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(17, 24, 39, 0.12); overflow: hidden;
+}
+.suggestions ul { list-style: none; margin: 0; padding: 0; }
+.suggestion {
+  display: flex; align-items: center; gap: 12px; padding: 10px 16px; cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+.suggestion.active { background: var(--accent-soft); }   /* hovered or picked with arrow keys */
+.suggestion-image {
+  width: 40px; height: 40px; flex: none; border-radius: 10px; object-fit: cover; background: var(--accent-soft);
+  display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--accent);
+}
+.suggestion-text { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.suggestion-name { font-size: 15px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.suggestion-name strong { color: var(--accent); }
+.suggestion-category { font-size: 12px; color: var(--muted); }
+.suggestion-price { font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.suggestion-all {
+  width: 100%; padding: 10px 16px; border: 0; background: #FFFFFF; text-align: left;
+  font-size: 14px; color: var(--accent); cursor: pointer;
+}
+.suggestion-all:hover { background: var(--accent-soft); }
