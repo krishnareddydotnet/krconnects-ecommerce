@@ -1,7 +1,7 @@
-name: docker catalog-api ci
+name: aks data-api ci
 
-# Builds catalog-api, pushes the image to Docker Hub (docker.io/ckreddy3030) and updates the image line in
-# k8s/docker-desktop/apps/catalog-api.yaml through a bot PR. After the merge Argo CD (app catalog-api) syncs it to Docker Desktop.
+# Builds data-api, pushes the image to Azure Container Registry (ACR) and updates
+# k8s/aks/apps/data-api.yaml through a bot PR. The cluster is updated with kubectl (or Argo CD) after the merge.
 
 # Workflow-level permissions: used by the publish job (job 1 sets its own, smaller set)
 permissions:
@@ -13,22 +13,22 @@ on:
     branches:
       - main
     paths:
-      - 'catalog-api/**'
-      - '.github/workflows/docker-catalog-api-ci.yml'
+      - 'data-api/**'
+      - '.github/workflows/aks-data-api-ci.yml'
   workflow_dispatch:
 
 jobs:
 
   # ---------------------------------------------------------------
-  # Job 1: secret scan, Maven build and test, image build, Trivy, push and sign (Docker Hub)
+  # Job 1: secret scan, build, test, image build, Trivy, push and sign (ACR)
   # ---------------------------------------------------------------
-  catalog-api-build-test:
+  data-api-build-test:
     runs-on: ubuntu-24.04
 
     # Job-level permissions REPLACE the workflow-level ones for this job (least privilege):
     permissions:
       contents: read     # check out the code
-      id-token: write    # let GitHub issue an OIDC token, used by Cosign keyless signing
+      id-token: write    # let GitHub issue an OIDC token, used by azure/login and Cosign keyless signing
 
     # Expose the image tag and digest to the next job (step output -> job output).
     # Only plain values: GitHub drops a job output that contains a secret's value.
@@ -36,15 +36,13 @@ jobs:
       image_tag: ${{ steps.image_tag.outputs.tag }}
       image_digest: ${{ steps.image_digest.outputs.digest }}
 
-    # Full image name (registry + name), used by every step below.
-    # The Docker Hub account is public, so it is written here (it is not passed between jobs as an output:
-    # it equals the secret DOCKERHUB_USERNAME, and GitHub drops job outputs that contain a secret's value).
+    # Full image name (registry + name), used by every step below
     env:
-      IMAGE: docker.io/ckreddy3030/catalog-api
+      IMAGE: krconnectspractice.azurecr.io/data-api
 
     defaults:
       run:
-        working-directory: catalog-api
+        working-directory: data-api
 
     steps:
       - name: checkout code
@@ -57,30 +55,32 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: setup Java
-        uses: actions/setup-java@v6
+      - name: setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          distribution: temurin
-          java-version: '25'
-          cache: maven
-          cache-dependency-path: catalog-api/pom.xml   # monorepo: point to this service's pom.xml
+          dotnet-version: '10.0.x'
 
-      - name: compile
-        run: mvn -B compile
+      - name: restore packages
+        run: dotnet restore
+
+      - name: build
+        run: dotnet build
 
       - name: unit tests
-        run: mvn -B test
+        run: dotnet test tests/DataApi.Tests/DataApi.Tests.csproj
 
-      - name: package
-        run: mvn -B package -DskipTests
-
-      # ---------- Log in to Docker Hub ----------
-      # Username + access token stored as repository secrets. Cosign also uses this login (it reads Docker's config).
-      - name: docker login (Docker Hub)
-        uses: docker/login-action@v4
+      # ---------- Log in to ACR ----------
+      # Log in to Azure with OIDC (no client secret). The identity only has AcrPush on krconnectspractice.
+      - name: azure login (OIDC)
+        uses: azure/login@v2
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          client-id: ${{ secrets.AZURE_ACR_PUSH_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Gives Docker (and Cosign, which reads Docker's login) a short-lived token for the registry
+      - name: docker login (ACR)
+        run: az acr login --name krconnectspractice
 
       # Image tag = first 7 characters of the commit SHA (e.g. a1b2c3d)
       - name: generate git sha
@@ -90,13 +90,13 @@ jobs:
       - name: docker build
         run: docker build -t "$IMAGE:${{ steps.image_tag.outputs.tag }}" .
 
-      # Report-only for now (exit-code 0): shows CRITICAL/HIGH findings without failing the job
+      # Fails the job on fixable CRITICAL/HIGH vulnerabilities, so a vulnerable image is never pushed
       - name: scan container image (Trivy)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: '${{ env.IMAGE }}:${{ steps.image_tag.outputs.tag }}'
           format: 'table'
-          exit-code: '0'
+          exit-code: '1'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
 
@@ -105,7 +105,7 @@ jobs:
 
       # After the push, Docker knows the image DIGEST: the sha256 hash of the image content.
       # A tag can be moved to another image later; a digest never changes.
-      # RepoDigests looks like "ckreddy3030/catalog-api@sha256:4f2a..."; we keep only the part after "@".
+      # RepoDigests looks like "krconnectspractice.azurecr.io/data-api@sha256:4f2a..."; we keep only the part after "@".
       - name: get image digest
         id: image_digest
         run: |
@@ -115,13 +115,13 @@ jobs:
 
       # ---------- Image signing with Cosign (keyless) ----------
       # Keyless = no private key to store. Cosign uses this job's GitHub OIDC identity
-      # ("workflow docker-catalog-api-ci.yml in this repo, on this branch") to get a short-lived
+      # ("workflow aks-data-api-ci.yml in this repo, on this branch") to get a short-lived
       # certificate from Sigstore, signs the image, and records it in a public transparency log.
       - name: install cosign
         uses: sigstore/cosign-installer@v3
 
       # Always sign the DIGEST (exact content), never just the tag (tags can move).
-      # The signature is stored next to the image in Docker Hub (uses the login above).
+      # The signature is stored next to the image in ACR (uses the login above).
       - name: sign image
         run: cosign sign --yes "$IMAGE@${{ steps.image_digest.outputs.digest }}"
 
@@ -129,7 +129,7 @@ jobs:
       - name: verify image signature
         run: |
           cosign verify \
-            --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/docker-catalog-api-ci.yml@${{ github.ref }}" \
+            --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/aks-data-api-ci.yml@${{ github.ref }}" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
             "$IMAGE@${{ steps.image_digest.outputs.digest }}"
 
@@ -145,7 +145,7 @@ jobs:
           output-file: ${{ github.workspace }}/sbom.spdx.json
 
       # Attach the SBOM to the image as a SIGNED attestation (same keyless identity as the signature).
-      # Stored next to the image in Docker Hub (a "sha256-<digest>.att" tag).
+      # Stored next to the image in ACR (a "sha256-<digest>.att" tag).
       - name: attest SBOM (Cosign)
         run: cosign attest --yes --type spdxjson --predicate "$GITHUB_WORKSPACE/sbom.spdx.json" "$IMAGE@${{ steps.image_digest.outputs.digest }}"
 
@@ -153,63 +153,58 @@ jobs:
       - name: verify SBOM attestation
         run: |
           cosign verify-attestation --type spdxjson \
-            --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/docker-catalog-api-ci.yml@${{ github.ref }}" \
+            --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/aks-data-api-ci.yml@${{ github.ref }}" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
             "$IMAGE@${{ steps.image_digest.outputs.digest }}" > /dev/null
-          echo "SBOM attestation verified for catalog-api"
+          echo "SBOM attestation verified for data-api"
 
   # ---------------------------------------------------------------
-  # Job 2: write the new image (tag + digest) into k8s/docker-desktop/apps/catalog-api.yaml and open a PR (GitOps)
+  # Job 2: write the new image (tag + digest) into k8s/aks/apps/data-api.yaml and open a PR (GitOps)
   # Runs on a NEW runner, so it checks out the code again.
   # ---------------------------------------------------------------
-  catalog-api-publish:
-    needs: catalog-api-build-test
+  data-api-publish:
+    needs: data-api-build-test
     runs-on: ubuntu-24.04
 
     # Read the tag and digest from job 1 (needs.<job-id>.outputs.<name>)
     env:
-      IMAGE_TAG: ${{ needs.catalog-api-build-test.outputs.image_tag }}
-      IMAGE_DIGEST: ${{ needs.catalog-api-build-test.outputs.image_digest }}
+      IMAGE_TAG: ${{ needs.data-api-build-test.outputs.image_tag }}
+      IMAGE_DIGEST: ${{ needs.data-api-build-test.outputs.image_digest }}
 
     steps:
       - name: checkout code
         uses: actions/checkout@v6
 
-      # Replace the WHOLE image line in each file (keeps its indentation), e.g.
-      #   image: docker.io/ckreddy3030/catalog-api:a1b2c3d@sha256:4f2a...
+      # Replace the WHOLE image line (keeps its indentation), e.g.
+      #   image: krconnectspractice.azurecr.io/data-api:placeholder
+      # becomes
+      #   image: krconnectspractice.azurecr.io/data-api:a1b2c3d@sha256:4f2a...
       # The tag is for humans (which version); the digest is what Kubernetes actually pulls.
       # (The image contains "/", so sed uses "|" as separator.)
-      - name: Update image in the Docker Desktop manifests
+      - name: Update image in the AKS manifest
         shell: bash
         run: |
-          NEW_IMAGE="docker.io/ckreddy3030/catalog-api:$IMAGE_TAG@$IMAGE_DIGEST"
-          for FILE in \
-            k8s/docker-desktop/apps/catalog-api.yaml
-          do
-            sed -i -E "s|^([[:space:]]*)image:[[:space:]]*[^[:space:]]*/catalog-api[:@][^[:space:]]*|\\1image: $NEW_IMAGE|" "$FILE"
-            # Stop if this file's image line was not found (otherwise the PR would silently change nothing)
-            grep -q "image: $NEW_IMAGE" "$FILE" || { echo "image line not found in $FILE"; exit 1; }
-            echo "New image line in $FILE:"
-            grep -n "image:" "$FILE"
-          done
+          FILE=k8s/aks/apps/data-api.yaml
+          NEW_IMAGE="krconnectspractice.azurecr.io/data-api:$IMAGE_TAG@$IMAGE_DIGEST"
+          sed -i -E "s|^([[:space:]]*)image:[[:space:]]*krconnectspractice\.azurecr\.io/data-api[:@].*$|\1image: $NEW_IMAGE|" "$FILE"
+          # Stop if the line was not found (otherwise the PR would silently change nothing)
+          grep -q "image: $NEW_IMAGE" "$FILE" || { echo "image line not found in $FILE"; exit 1; }
+          echo "New image line:"
+          grep -n "image:" "$FILE"
 
       # Outside run: (with:, env:, if:) use the expression syntax ${{ env.IMAGE_TAG }}
       # main is protected, so the new image goes in through a PR
-      - name: Create PR for the image update
+      - name: Create PR for AKS image update
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore(docker): update catalog-api image to ${{ env.IMAGE_TAG }}"
-          branch: automation/docker-catalog-api-image-update
+          commit-message: "chore(aks): update data-api image to ${{ env.IMAGE_TAG }}"
+          branch: automation/aks-data-api-image-update
           base: main
-          title: "chore(docker): update catalog-api image"
+          title: "chore(aks): update data-api image"
           body: |
-            Automated Docker Desktop image update after successful catalog-api CI (Docker Hub).
-            - Image: `docker.io/ckreddy3030/catalog-api`
+            Automated AKS image update after successful data-api CI (ACR).
+            - Image: `krconnectspractice.azurecr.io/data-api`
             - Tag: `${{ env.IMAGE_TAG }}`
             - Digest: `${{ env.IMAGE_DIGEST }}`
-
-            Updated files:
-            - `k8s/docker-desktop/apps/catalog-api.yaml` (Argo CD app `catalog-api`)
-          add-paths: |
-            k8s/docker-desktop/apps/catalog-api.yaml
+          add-paths: k8s/aks/apps/data-api.yaml
