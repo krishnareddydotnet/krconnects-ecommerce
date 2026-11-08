@@ -57,7 +57,7 @@ spec:
       containers:
         - name: order-api
           # CI replaces this whole line with <image>:<tag>@<digest> (bot PR). Do not edit it by hand.
-          image: krconnectspractice.azurecr.io/order-api:d2a67ae@sha256:404ded853ed56ac81459926999b83fb7eefc421020416875087cd9687272a00d
+          image: krconnectspractice.azurecr.io/order-api:48b03e9@sha256:b1d21574dcb31a82ac3ca4cebfe97e59944d98ee09b670815020c6f08f5da4a4
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
