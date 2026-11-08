@@ -1,0 +1,9 @@
+# Default deny for the whole "default" namespace (zero trust baseline).
+# An ALLOW policy with no rules matches nothing, so every request is denied
+# unless another AuthorizationPolicy explicitly allows it.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-nothing
+  namespace: default
+spec: {}

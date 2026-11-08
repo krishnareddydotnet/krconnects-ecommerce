@@ -1,0 +1,18 @@
+# admin-portal: only the Istio ingress gateway may call it (ready for when an admin route is added; kubectl port-forward bypasses the sidecar, so it still works).
+# ALLOW policy = only the callers listed below may call this service; everyone else is denied.
+# Callers are identified by their service account (verified through mTLS).
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: admin-portal
+  namespace: default
+spec:
+  action: ALLOW
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: admin-portal   # AKS pods use this label (Docker Desktop uses app.kubernetes.io/instance)
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/aks-istio-ingress/sa/aks-istio-ingressgateway-external   # AKS managed Istio external ingress gateway

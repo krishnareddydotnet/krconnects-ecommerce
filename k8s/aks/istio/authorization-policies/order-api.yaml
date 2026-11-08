@@ -1,0 +1,19 @@
+# order-api: called only by the two portals (their nginx forwards /order-api/).
+# ALLOW policy = only the callers listed below may call this service; everyone else is denied.
+# Callers are identified by their service account (verified through mTLS).
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: order-api
+  namespace: default
+spec:
+  action: ALLOW
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: order-api   # AKS pods use this label (Docker Desktop uses app.kubernetes.io/instance)
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/default/sa/customer-portal          # place and view orders
+              - cluster.local/ns/default/sa/admin-portal             # manage orders

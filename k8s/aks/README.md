@@ -17,7 +17,7 @@ k8s/aks/
 ├── key-vault/     SecretProviderClass objects (Key Vault CSI driver + Workload Identity)  [present]
 │   ├── data-api-kv.yaml   Key Vault "data-db-connection" -> Secret data-api-secret / ConnectionStrings__DataDb
 │   └── jwt-key-kv.yaml    Key Vault "jwt-key"            -> Secret auth-api-secret / Jwt__Key
-├── istio/         managed Istio (asm-1-30): Gateway + VirtualService [present]; mTLS, AuthorizationPolicies [later]
+├── istio/         managed Istio (asm-1-30): Gateway, VirtualService, STRICT mTLS, AuthorizationPolicies   [present]
 └── argocd/        Argo CD Applications (if deployed with GitOps)                                    [later]
 ```
 
@@ -65,7 +65,7 @@ k8s/aks/
 | Resource requests and limits | One pod cannot starve the others; needed for scheduling and HPA |
 
 These settings meet the Kubernetes Pod Security Admission `restricted` level.
-Network rules: a NetworkPolicy per service lives in its `apps/<service>.yaml`; Istio mTLS and AuthorizationPolicies will live in `istio/`.
+Network rules: a NetworkPolicy per service lives in its `apps/<service>.yaml`; Istio mTLS and AuthorizationPolicies live in `istio/`.
 
 ## Who may call whom (NetworkPolicy, incoming traffic only)
 
