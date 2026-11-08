@@ -1,0 +1,15 @@
+# The PersistentVolumeClaim = the app's REQUEST for storage ("I need 1Gi, shared, of this class").
+# Kubernetes + the Azure Files CSI driver answer it by creating a PersistentVolume (PV)
+# and an Azure file share automatically. This is called dynamic provisioning.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: photos-pvc
+  namespace: pv-lab
+spec:
+  accessModes:
+    - ReadWriteMany                  # RWX: many pods on many nodes can read AND write
+  storageClassName: azurefile-std-retain   # our class from storageclass.yaml
+  resources:
+    requests:
+      storage: 1Gi                   # size of the share (step 6 grows it to 2Gi)

@@ -1,0 +1,18 @@
+# Our own StorageClass (production teams don't rely on the AKS defaults).
+# Azure Files = a network file share, so many pods on different nodes can use it (ReadWriteMany).
+# A StorageClass is cluster-wide: it has no namespace.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: azurefile-std-retain
+provisioner: file.csi.azure.com      # the Azure Files CSI driver (built into AKS)
+parameters:
+  skuName: Standard_LRS              # cheapest tier: standard HDD, kept in one datacenter (pay for GB used)
+reclaimPolicy: Retain                # deleting the PVC keeps the PV and the data (built-in classes use Delete)
+allowVolumeExpansion: true           # the PVC can be made bigger later
+volumeBindingMode: Immediate         # create the file share as soon as the PVC is created
+mountOptions:                        # how the share appears inside the pod
+  - uid=101                          # files are owned by the nginx non-root user (UID 101)
+  - gid=101
+  - dir_mode=0755                    # owner can write; others can only read (least privilege)
+  - file_mode=0644
