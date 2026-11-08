@@ -57,7 +57,7 @@ spec:
       containers:
         - name: data-api
           # CI replaces this whole line with <image>:<tag>@<digest> (bot PR). Do not edit it by hand.
-          image: krconnectspractice.azurecr.io/data-api:d2a67ae@sha256:75a71e7b67584bc9b3d1a84381fed890d26c3155440ba90528e9befe53b9b731
+          image: krconnectspractice.azurecr.io/data-api:48b03e9@sha256:fdae1e32f9d61d240057784f00921b0cfd7845254ff109c13b5c500a5546581a
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
