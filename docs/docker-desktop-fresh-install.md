@@ -396,11 +396,66 @@ notification-service is not deployed (it needs Azure Service Bus; it's on the ba
 
 ---
 
+## After a Docker Desktop or laptop restart
+
+The cluster survives a restart, but this multi-node kind cluster has two known problems afterwards.
+Check them every time Docker Desktop or the laptop has restarted.
+
+### 1. Pods stuck in `Unknown` / `Init:1/2` (kindnet keeps old node IPs)
+
+**Why:** each kind node is a Docker container. After a Docker restart the nodes get **new IPs**, but kindnet (kind's network
+plugin) and kube-proxy keep the **old** ones. Traffic between nodes breaks: CoreDNS lookups time out, Istio sidecars can't
+reach istiod for their certificate, and pods hang.
+
+**Symptoms:**
+- Pods `0/2 Unknown` or new pods stuck at `Init:1/2`.
+- Sidecar log: `kubectl logs <pod> -c istio-proxy` shows `lookup istiod.istio-system.svc ... i/o timeout`.
+- `kubectl get pods -n kube-system -o wide`: kindnet / kube-proxy pods show IPs that differ from
+  `kubectl get nodes -o wide` (INTERNAL-IP), or two nodes show the same IP.
+
+**Fix:** restart the network pods (DaemonSets recreate them with the current node IPs), then the apps:
+
+```powershell
+kubectl delete pod -n kube-system -l app=kindnet
+kubectl delete pod -n kube-system -l k8s-app=kube-proxy
+kubectl rollout restart deployment -n default
+kubectl get pods -A | Select-String -NotMatch "Running|Completed"
+```
+
+**Check:** all app pods `2/2 Running`; the last command shows only the header (and the `gk-test` demo pods, if present).
+
+### 2. https://localhost refuses to connect (LoadBalancer mapping lost)
+
+**Why:** Docker Desktop publishes the `istio-ingress` LoadBalancer Service to the laptop's `localhost`. After a restart that
+mapping can be missing, even though the gateway pod is running.
+
+**Symptoms:** browser `ERR_CONNECTION_REFUSED`; `Test-NetConnection -ComputerName localhost -Port 443` is `False`;
+`kubectl get svc -n istio-ingress` may show EXTERNAL-IP `<pending>`.
+
+**Fix:** a full Docker Desktop restart (tray icon > **Quit Docker Desktop**, start it again, wait for *Kubernetes running*),
+then fix 1 again. If EXTERNAL-IP still stays `<pending>`, recreate the Service:
+
+```powershell
+kubectl delete service istio-ingress -n istio-ingress
+helm upgrade istio-ingress istio/gateway -n istio-ingress --version 1.30.7
+kubectl get svc -n istio-ingress
+Test-NetConnection -ComputerName localhost -Port 443
+```
+
+**Check:** EXTERNAL-IP has an address and `TcpTestSucceeded : True`.
+
+**Temporary workaround** (while fixing): `kubectl port-forward -n istio-ingress service/istio-ingress 443:443`
+(keep the window open; port 80 can't be forwarded because Windows reserves it).
+
+---
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
 | data-api not ready, log `A network-related ... error` or `Login failed for user 'ecommerce_data_api'` | SQL Server not reachable on 1433, or wrong password in the secret | Step 1 checks; `k8s/docker-desktop/sql-server/README.md` (network test); recreate the secret (step 2) |
+| After a restart: pods `Unknown` / `Init:1/2`, sidecar log `lookup istiod.istio-system.svc ... i/o timeout` | kind nodes got new IPs; kindnet and kube-proxy kept the old ones | "After a Docker Desktop or laptop restart", fix 1 |
+| After a restart: https://localhost refuses to connect, `istio-ingress` EXTERNAL-IP `<pending>` | Docker Desktop lost the LoadBalancer-to-localhost mapping | "After a Docker Desktop or laptop restart", fix 2 |
 | Shop shows letter placeholders instead of pictures | Images not on the PVC, or catalog-api not synced | Step 9a; `k8s/docker-desktop/images/README.md` |
 | Pod `ErrImagePull` | The image tag/digest in `k8s/docker-desktop/apps/<service>.yaml` is not on Docker Hub | Re-run the service's CI pipeline and merge its bot PR |
 | Portal `CrashLoopBackOff`, nginx `host not found in upstream` | A backend Service is missing | Deploy the missing service, then `kubectl delete pod <portal-pod>` |

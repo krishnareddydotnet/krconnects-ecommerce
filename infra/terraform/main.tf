@@ -58,7 +58,7 @@ resource "azurerm_storage_account" "sa" {
 
   # Safety: Terraform refuses to delete this (images are used by kind + AKS)
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 }
 
@@ -69,7 +69,7 @@ resource "azurerm_storage_container" "images" {
 
   # Safety: Terraform refuses to delete the container (500 product images)
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 }
 
