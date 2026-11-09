@@ -12,7 +12,20 @@ spec:
   gateways:
     - krconnects-gateway
   http:
-    - route:
+    # Product images first (the first matching rule wins): /images/... -> image-server (PVC)
+    - name: product-images
+      match:
+        - uri:
+            prefix: /images/
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: image-server
+            port:
+              number: 8080
+    - name: shop
+      route:
         - destination:
             host: customer-portal-active     # users always go to the active version
             port:

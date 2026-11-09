@@ -68,9 +68,11 @@ spec:
             capabilities:
               drop: ["ALL"]       # remove all extra Linux privileges
           env:
-            # base URL of product images (Blob Storage); the database stores only the path
+            # base URL of product images; the database stores only the path (products/<name>.webp).
+            # "/images/" = same site as the shop: the Istio route sends /images/ to image-server (PVC).
+            # (Azure Blob Storage was used before; moving images again only changes this value.)
             - name: IMAGES_BASE_URL
-              value: "https://stkrcimagesdevcin001.blob.core.windows.net/"
+              value: "/images/"
             # key that CHECKS login tokens on /admin/** (same key auth-api signs with)
             - name: Jwt__Key
               valueFrom:

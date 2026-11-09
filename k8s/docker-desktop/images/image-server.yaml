@@ -1,0 +1,182 @@
+# -----------------------------------------------------------------------
+# image-server on Docker Desktop: serves the 500 product images from a PVC
+#
+# Why       : product images used to come from Azure Blob Storage (deleted). Now they live on a
+#             PersistentVolume in the cluster and nginx serves them at https://localhost/images/...
+# Flow      : browser -> Istio gateway (/images/ route) -> image-server (nginx) -> PVC (product-images)
+# Database  : stores only the path, e.g. "products/wireless-mouse.webp";
+#             catalog-api adds the base URL (IMAGES_BASE_URL = /images/).
+# Objects   : PersistentVolumeClaim, ConfigMap, ServiceAccount, Deployment, Service, NetworkPolicy
+# Load files: kubectl cp (see README.md in this folder), done once; the files stay on the PV.
+#
+# By hand   : kubectl apply -f k8s/docker-desktop/images/image-server.yaml
+# -----------------------------------------------------------------------
+
+# PVC: the storage for the images. kind's built-in "standard" StorageClass (local-path)
+# creates a PV on a node's disk (ReadWriteOnce: one node at a time, fine for 1 replica).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: product-images
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard        # kind's default class (local-path provisioner)
+  resources:
+    requests:
+      storage: 1Gi                  # 500 small .webp files need only a few MB
+---
+# nginx config: /products/<file> -> files on the PVC (the Istio route removes the /images prefix first)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: image-server-nginx
+  namespace: default
+data:
+  default.conf: |
+    server {
+        listen 8080;
+        root /usr/share/nginx/html;
+
+        # Health probes (kubelet)
+        location = /health {
+            access_log off;
+            return 200 "healthy\n";
+            add_header Content-Type text/plain;
+        }
+
+        # Product images: /products/wireless-mouse.webp -> /usr/share/nginx/html/products/wireless-mouse.webp
+        location /products/ {
+            expires 7d;                                  # browsers may cache images for 7 days
+            add_header Cache-Control "public";
+            try_files $uri =404;                         # only existing files; no directory listing
+        }
+
+        # Anything else: not found
+        location / {
+            return 404;
+        }
+    }
+---
+# ServiceAccount: the pod's identity (Istio caller identity cluster.local/ns/default/sa/image-server)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: image-server
+  namespace: default
+automountServiceAccountToken: false   # nginx never calls the Kubernetes API
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: image-server
+  namespace: default
+  labels:
+    app.kubernetes.io/name: image-server
+spec:
+  replicas: 1                         # RWO volume: one pod (on one node) mounts it
+  strategy:
+    type: Recreate                    # RWO: stop the old pod before the new one mounts the volume
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: image-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: image-server       # used by the selector, Service and NetworkPolicy
+        app.kubernetes.io/instance: image-server   # the Istio AuthorizationPolicy selects this label
+    spec:
+      serviceAccountName: image-server
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101                # nginx user of the nginx-unprivileged image
+        runAsGroup: 101
+        fsGroup: 101                  # the volume is made writable for group 101 (needed for kubectl cp)
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: image-server
+          image: nginxinc/nginx-unprivileged:alpine   # same base as the portals; alpine includes tar (kubectl cp)
+          ports:
+            - containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true   # only the volumes below are writable
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+          volumeMounts:
+            - name: product-images            # THE PVC: the images survive pod restarts
+              mountPath: /usr/share/nginx/html/products
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+              readOnly: true
+            - name: tmp                       # nginx writes its pid and cache files to /tmp
+              mountPath: /tmp
+      volumes:
+        - name: product-images
+          persistentVolumeClaim:
+            claimName: product-images
+        - name: nginx-config
+          configMap:
+            name: image-server-nginx
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: image-server
+  namespace: default
+spec:
+  selector:
+    app.kubernetes.io/name: image-server
+  ports:
+    - name: http                      # Istio: HTTP traffic
+      port: 8080
+      targetPort: 8080
+---
+# NetworkPolicy: only the Istio ingress gateway may reach the app port (same pattern as the other services)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: image-server
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: image-server
+  policyTypes:
+    - Ingress
+  ingress:
+    # 1) The app port: only the Istio ingress gateway
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: istio-ingress
+      ports:
+        - protocol: TCP
+          port: 8080
+    # 2) Istio sidecar ports (health probes rewritten to 15020, sidecar readiness 15021, metrics 15020)
+    - ports:
+        - protocol: TCP
+          port: 15020
+        - protocol: TCP
+          port: 15021

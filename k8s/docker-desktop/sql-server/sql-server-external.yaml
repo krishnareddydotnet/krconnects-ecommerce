@@ -1,0 +1,33 @@
+# SQL Server runs OUTSIDE the cluster (SQL Server 2025 Express on the Windows laptop).
+# This gives it a normal in-cluster name: sql-server.default.svc (port 1433).
+# Pattern: a Service WITHOUT a selector + an EndpointSlice that we fill in ourselves.
+# Setup of SQL Server itself (TCP/IP on 1433, Mixed Mode, login): see README.md in this folder.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sql-server
+  namespace: default
+spec:
+  ports:
+    - name: tcp-sql           # "tcp-" prefix: tells Istio this is plain TCP (not HTTP)
+      port: 1433
+      targetPort: 1433
+      protocol: TCP
+  # no selector: Kubernetes won't look for pods; the EndpointSlice below says where to go
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: sql-server-laptop
+  namespace: default
+  labels:
+    kubernetes.io/service-name: sql-server   # links this EndpointSlice to the Service above
+addressType: IPv4
+ports:
+  - name: tcp-sql             # must match the Service port name
+    port: 1433
+    protocol: TCP
+endpoints:
+  - addresses:
+      - "192.168.65.254"      # Docker Desktop's address for the Windows host (host.docker.internal)
