@@ -3,7 +3,9 @@
 Everything for the local Docker Desktop Kubernetes cluster, as plain YAML (no Helm): the 6 apps, Istio traffic and
 security rules, and the Argo CD Applications that deploy them from Git. Images come from Docker Hub
 (`docker.io/ckreddy3030`); the pipelines `.github/workflows/docker-<service>-ci.yml` update the image lines through bot PRs.
-Secrets are NOT here: create them with kubectl (`docs/docker-desktop-setup.md`, A3).
+Secrets are NOT here: create them with kubectl (`docs/docker-desktop-fresh-install.md`, step 2).
+No Azure services: the database is SQL Server Express on the Windows laptop (`sql-server/`) and the product images
+are on a PVC (`images/`).
 The Helm chart `helm/ecommerce` is no longer used on Docker Desktop (kept for reference; its pipelines are archived in
 `.github/workflows-archive-docker-helm/`).
 
@@ -13,7 +15,9 @@ The Helm chart `helm/ecommerce` is no longer used on Docker Desktop (kept for re
 | `istio/common/authentication/peer-authentication.yaml` | STRICT mTLS for the `default` namespace (always applied) |
 | `istio/common/authorization-policies/` | Who may call each service, zero trust (always applied) |
 | `istio/monitoring/` | Prometheus, Grafana and Kiali through the gateway: https://prometheus.localhost, https://grafana.localhost, https://kiali.localhost (always applied) |
-| `istio/scenarios/basic/` | Gateway (HTTPS 443 + redirect 80) + VirtualServices: https://localhost -> customer-portal, https://admin.localhost -> admin-portal |
+| `sql-server/` | Local SQL Server on Windows: Service without selector + EndpointSlice -> `sql-server:1433`; one-time Windows setup in its README |
+| `images/` | Product images: PVC `product-images` + `image-server` (nginx), served at https://localhost/images/ (steps in `images/README.md`) |
+| `istio/scenarios/basic/` | Gateway (HTTPS 443 + redirect 80) + VirtualServices: https://localhost -> customer-portal (`/images/` -> image-server), https://admin.localhost -> admin-portal |
 | `istio/scenarios/canary/customer-portal/` | Canary for customer-portal: Rollout + stable/canary Services + weighted VirtualService, deployed by Argo CD app `customer-portal-canary`; the pipeline's bot PR updates its Rollout image (needs Argo Rollouts, setup guide B7; steps in `scenarios/canary/README.md`) |
 | `istio/scenarios/blue-green/customer-portal/` | Blue-green for customer-portal: Rollout (blueGreen) + active/preview Services + VirtualService to active (Argo CD app `argocd/bluegreen-customer-portal.yaml`; the pipeline's bot PR updates its Rollout image; steps in `scenarios/blue-green/README.md`) |
 | `istio/scenarios/ab-testing/` | A/B testing hands-on (to be added) |
@@ -57,6 +61,7 @@ Switching customer-portal between basic, canary and blue-green: `istio/scenarios
 | Service | Allowed callers |
 |---|---|
 | customer-portal | Istio ingress gateway |
+| image-server | Istio ingress gateway (GET/HEAD only) |
 | auth-api | customer-portal, admin-portal |
 | catalog-api | customer-portal, admin-portal |
 | order-api | customer-portal, admin-portal |

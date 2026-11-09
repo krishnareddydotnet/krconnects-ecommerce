@@ -10,7 +10,8 @@ Follow the steps in order. Every step was tested on 6 Nov 2026 and ends with a c
 - Every UI on https://*.localhost.
 
 Run all commands in **PowerShell 7** from the repo root `D:\krconnects\krconnects-ecommerce`.
-Azure SQL (data) and Azure Blob Storage (product images) stay in Azure; only the cluster is local.
+Everything runs on the laptop, with no Azure services: the database is **SQL Server 2025 Express on Windows**
+(`k8s/docker-desktop/sql-server/README.md`) and the product images are on a **PVC** served by `image-server` (step 9a).
 
 ---
 
@@ -48,23 +49,23 @@ kubectl get nodes
 
 ---
 
-## Step 1: allow the laptop's IP in the Azure SQL firewall
+## Step 1: local SQL Server and its in-cluster name
 
-Pods on Docker Desktop reach Azure SQL through the laptop's public IP.
+The database runs on Windows (SQL Server 2025 Express, default instance, port 1433, database `ecommerce`,
+login `ecommerce_data_api`). One-time Windows setup (install, TCP/IP on 1433, restore `dbscript.sql`, app login):
+`k8s/docker-desktop/sql-server/README.md`.
 
-```powershell
-(Invoke-RestMethod https://api.ipify.org)
-az login
-az sql server firewall-rule list --resource-group rg-ecommerce-sql --server krconnects -o table
-```
-
-If your IP is **not** in the list, add it (replace `<your-ip>` with the IP shown above):
+Check SQL Server listens, then give it the in-cluster name `sql-server`:
 
 ```powershell
-az sql server firewall-rule create --resource-group rg-ecommerce-sql --server krconnects --name laptop-home --start-ip-address <your-ip> --end-ip-address <your-ip>
+Test-NetConnection -ComputerName localhost -Port 1433
+docker exec desktop-control-plane getent hosts host.docker.internal
+kubectl apply -f k8s/docker-desktop/sql-server/sql-server-external.yaml
+kubectl get endpointslice -l kubernetes.io/service-name=sql-server
 ```
 
-**Check:** your current public IP appears in a rule.
+**Check:** `TcpTestSucceeded : True`, and the EndpointSlice shows the same IP as `host.docker.internal`
+(`192.168.65.254`; if it differs, update the IP in `sql-server-external.yaml`).
 
 ---
 
@@ -73,21 +74,22 @@ az sql server firewall-rule create --resource-group rg-ecommerce-sql --server kr
 | Secret | Key | Used by |
 |---|---|---|
 | `auth-api-secret` | `Jwt__Key` | auth-api, catalog-api, order-api |
-| `data-api-secret` | `ConnectionStrings__DataDb` | data-api (Azure SQL) |
+| `data-api-secret` | `ConnectionStrings__DataDb` | data-api (local SQL Server through `sql-server`) |
 
 ```powershell
 $JWT_KEY = [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
 kubectl create secret generic auth-api-secret --from-literal=Jwt__Key=$JWT_KEY
 
-kubectl create secret generic data-api-secret --from-literal=ConnectionStrings__DataDb="<connection-string>"
+kubectl create secret generic data-api-secret --from-literal=ConnectionStrings__DataDb="Server=sql-server,1433;Database=ecommerce;User Id=ecommerce_data_api;Password=<password>;Encrypt=True;TrustServerCertificate=True"
 
 kubectl describe secret auth-api-secret
 kubectl describe secret data-api-secret
 ```
 
-For `<connection-string>`: Azure portal > SQL database **ecommerce** > **Connection strings** > **ADO.NET**, with your real password filled in.
+Replace `<password>` with the `ecommerce_data_api` password. `TrustServerCertificate=True` because local SQL Server uses a
+self-signed certificate (laptop only, never production).
 
-**Check:** `Jwt__Key: 64 bytes` and `ConnectionStrings__DataDb: ~234 bytes`.
+**Check:** `Jwt__Key: 64 bytes` and `ConnectionStrings__DataDb` is present.
 
 ---
 
@@ -275,6 +277,32 @@ kubectl get peerauthentication,authorizationpolicy
 
 ---
 
+## Step 9a: product images (PVC + image-server)
+
+The 500 images are on a PVC (kind `standard` StorageClass) and a small nginx pod serves them at `https://localhost/images/...`.
+catalog-api already has `IMAGES_BASE_URL: "/images/"`, and the basic VirtualService already has the `/images/` route.
+
+```powershell
+kubectl apply -f k8s/docker-desktop/images/image-server.yaml
+kubectl apply -f k8s/docker-desktop/istio/common/authorization-policies/image-server.yaml
+kubectl get pvc product-images
+kubectl get pods -l app.kubernetes.io/name=image-server
+```
+
+Copy the images from the backup (run inside the folder: `kubectl cp` on Windows can't take `D:` paths):
+
+```powershell
+cd D:\krconnects\product-images-backup
+kubectl cp . default/<image-server-pod-name>:/usr/share/nginx/html/products -c image-server
+cd D:\krconnects\krconnects-ecommerce
+kubectl exec deploy/image-server -c image-server -- sh -c "ls /usr/share/nginx/html/products | wc -l"
+```
+
+**Check:** PVC `Bound`, pod `2/2 Running`, count `500`, and https://localhost shows product pictures.
+Details and troubleshooting: `k8s/docker-desktop/images/README.md`.
+
+---
+
 ## Step 10: monitoring (Prometheus, Grafana, Kiali)
 
 ```powershell
@@ -372,7 +400,8 @@ notification-service is not deployed (it needs Azure Service Bus; it's on the ba
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| data-api restarts, log `Client with IP address 'x.x.x.x' is not allowed` | Azure SQL firewall | Step 1, then `kubectl rollout restart deployment data-api` |
+| data-api not ready, log `A network-related ... error` or `Login failed for user 'ecommerce_data_api'` | SQL Server not reachable on 1433, or wrong password in the secret | Step 1 checks; `k8s/docker-desktop/sql-server/README.md` (network test); recreate the secret (step 2) |
+| Shop shows letter placeholders instead of pictures | Images not on the PVC, or catalog-api not synced | Step 9a; `k8s/docker-desktop/images/README.md` |
 | Pod `ErrImagePull` | The image tag/digest in `k8s/docker-desktop/apps/<service>.yaml` is not on Docker Hub | Re-run the service's CI pipeline and merge its bot PR |
 | Portal `CrashLoopBackOff`, nginx `host not found in upstream` | A backend Service is missing | Deploy the missing service, then `kubectl delete pod <portal-pod>` |
 | Pods `1/1` after step 7 | Pods were created before the namespace label | `kubectl rollout restart deployment -n default` |

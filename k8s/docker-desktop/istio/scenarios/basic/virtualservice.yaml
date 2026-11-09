@@ -1,5 +1,7 @@
-# Routing: everything that arrives at the gateway goes to customer-portal.
-# customer-portal's nginx then forwards /api/, /catalog-api/ and /order-api/ to the backends.
+# Routing for the shop (https://localhost):
+#   /images/...  -> image-server (product images from a PVC); the "/images" prefix is removed first
+#   everything else -> customer-portal; its nginx forwards /api/, /catalog-api/ and /order-api/ to the backends.
+# Rules are checked top to bottom: the first match wins, so the /images/ rule must come first.
 apiVersion: networking.istio.io/v1
 kind: VirtualService
 metadata:
@@ -11,7 +13,21 @@ spec:
   gateways:
     - krconnects-gateway
   http:
-    - route:
+    # 1) Product images: /images/products/x.webp -> image-server /products/x.webp
+    - name: product-images
+      match:
+        - uri:
+            prefix: /images/
+      rewrite:
+        uri: /                        # replaces the matched "/images/" with "/"
+      route:
+        - destination:
+            host: image-server        # Kubernetes Service name (k8s/docker-desktop/images/image-server.yaml)
+            port:
+              number: 8080
+    # 2) Everything else: the shop
+    - name: shop
+      route:
         - destination:
             host: customer-portal     # Kubernetes Service name
             port:

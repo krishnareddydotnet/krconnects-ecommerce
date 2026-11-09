@@ -1,6 +1,7 @@
 # Shop routing for the canary scenario: stable/canary weights.
 # Same name as scenarios/basic/virtualservice.yaml, so applying this REPLACES the basic shop route.
 # Git keeps 100/0; Argo Rollouts changes the weights in the cluster during a release.
+# Route order: http[0] = product images, http[1] = primary (the Argo CD app ignores http[1] weights).
 apiVersion: networking.istio.io/v1
 kind: VirtualService
 metadata:
@@ -12,6 +13,18 @@ spec:
   gateways:
     - krconnects-gateway
   http:
+    # Product images first (the first matching rule wins): /images/... -> image-server (PVC)
+    - name: product-images
+      match:
+        - uri:
+            prefix: /images/
+      rewrite:
+        uri: /
+      route:
+        - destination:
+            host: image-server
+            port:
+              number: 8080
     - name: primary                            # same name as in the Rollout (routes: primary)
       route:
         - destination:

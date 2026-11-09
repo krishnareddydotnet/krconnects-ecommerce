@@ -1,0 +1,21 @@
+# image-server: only the Istio ingress gateway may call it (browsers load images through the gateway).
+# ALLOW policy = only the callers listed below may call this service; everyone else is denied.
+# Callers are identified by their service account (verified through mTLS).
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: image-server
+  namespace: default
+spec:
+  action: ALLOW
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: image-server
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/istio-ingress/sa/istio-ingress
+      to:
+        - operation:
+            methods: ["GET", "HEAD"]   # read-only: images can only be downloaded, never changed over HTTP

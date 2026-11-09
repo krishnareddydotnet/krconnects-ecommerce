@@ -40,5 +40,5 @@ spec:
       name: krconnects-virtualservice
       namespace: default
       jsonPointers:
-        - /spec/http/0/route/0/weight    # stable weight
-        - /spec/http/0/route/1/weight    # canary weight
+        - /spec/http/1/route/0/weight    # stable weight (http[1] = primary; http[0] is the /images/ route)
+        - /spec/http/1/route/1/weight    # canary weight

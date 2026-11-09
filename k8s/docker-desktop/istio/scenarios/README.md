@@ -40,7 +40,7 @@ The finalizer tells Argo CD: before the Application disappears, delete every res
 kubectl get application -n argocd                     # customer-portal / customer-portal-canary / customer-portal-bluegreen
 kubectl get deployment customer-portal                # exists = basic
 kubectl get rollout customer-portal -o jsonpath="{.spec.strategy}"   # canary or blueGreen
-kubectl get virtualservice krconnects-virtualservice -o jsonpath="{.spec.http[0].route[*].destination.host}"
+kubectl get virtualservice krconnects-virtualservice -o jsonpath="{.spec.http[-1:].route[*].destination.host}"
 kubectl get svc -l app.kubernetes.io/instance=customer-portal        # Services of the scenario
 ```
 
@@ -107,7 +107,7 @@ The deleted scenario app also removed `krconnects-virtualservice`, so the basic 
 ```powershell
 kubectl get application -n argocd                                   # only ONE customer-portal* app
 kubectl get pods -l app.kubernetes.io/instance=customer-portal -o custom-columns="POD:.metadata.name,IMAGE:.spec.containers[0].image"
-kubectl get virtualservice krconnects-virtualservice -o jsonpath="{.spec.http[0].route[*].destination.host}"
+kubectl get virtualservice krconnects-virtualservice -o jsonpath="{.spec.http[-1:].route[*].destination.host}"
 kubectl get svc | Select-String customer-portal                     # no leftover Services of another scenario
 ```
 

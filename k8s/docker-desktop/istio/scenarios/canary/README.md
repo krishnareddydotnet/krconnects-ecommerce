@@ -95,7 +95,7 @@ Watch (no plugin needed):
 ```powershell
 kubectl get rollout customer-portal                                                           # status, step
 kubectl get rollout customer-portal -o jsonpath="{.status.currentStepIndex}"                  # step 0..7
-kubectl get virtualservice krconnects-virtualservice -o jsonpath="{.spec.http[0].route[*].weight}"   # e.g. 90 10
+kubectl get virtualservice krconnects-virtualservice -o jsonpath="{.spec.http[1].route[*].weight}"   # e.g. 90 10 (http[1] = primary; http[0] = /images/)
 kubectl get pods -l app.kubernetes.io/instance=customer-portal
 ```
 
