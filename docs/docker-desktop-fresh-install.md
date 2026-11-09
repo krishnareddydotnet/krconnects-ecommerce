@@ -1,12 +1,14 @@
 # KRConnects e-commerce: fresh install on an empty Docker Desktop cluster (runbook)
 
 Use this runbook when Docker Desktop Kubernetes is **empty** (new install or full cleanup).
-Follow the steps in order. Every step was tested on 6 Nov 2026 and ends with a check.
+Follow the steps in order. Every step ends with a check. Last full test: 9 Nov 2026, on a freshly reinstalled Docker Desktop
+(kind, 6 nodes) with SQL Server 2025 Express on Windows.
 
 **End result:**
 - 6 microservices deployed by Argo CD (basic rolling update).
 - Istio with an HTTPS gateway, STRICT mTLS and zero-trust AuthorizationPolicies.
 - Prometheus, Grafana, Kiali, metrics-server and Argo Rollouts.
+- Product images on a PVC served by `image-server`; the database on local SQL Server (no Azure services).
 - Every UI on https://*.localhost.
 
 Run all commands in **PowerShell 7** from the repo root `D:\krconnects\krconnects-ecommerce`.
@@ -36,16 +38,34 @@ Everything runs on the laptop, with no Azure services: the database is **SQL Ser
 | Docker Desktop, Kubernetes enabled, **kind** cluster with **6 nodes** (1 control-plane + 5 workers) | `kubectl get nodes` shows 6 `Ready` |
 | Docker Desktop memory (WSL2) | 12 to 16 GB |
 | PowerShell 7 | `$PSVersionTable.PSVersion` |
-| kubectl, Helm, Azure CLI, Git | `kubectl version --client`, `helm version`, `az version`, `git status` |
+| kubectl, Helm, Git | `kubectl version --client`, `helm version`, `git status` |
 | istioctl 1.30.7 on PATH (`C:\tools\istio-1.30.7\bin`) | `istioctl version` |
 | Latest repo | `git switch main` then `git pull` |
+| SQL Server 2025 Express on Windows, TCP 1433, database `ecommerce` restored | `Test-NetConnection -ComputerName localhost -Port 1433` is `True` (setup: `k8s/docker-desktop/sql-server/README.md`) |
+| **Port 80 free (IIS stopped)** | `Get-NetTCPConnection -LocalPort 80 -State Listen -ErrorAction SilentlyContinue` prints nothing |
+| Backups on disk | `D:\krconnects\localhost.crt` + `.key` (step 8), `D:\krconnects\product-images-backup` (500 files, step 9a) |
 
 ```powershell
 kubectl config use-context docker-desktop
 kubectl get nodes
+istioctl version
 ```
 
-**Check:** 6 nodes `Ready`.
+**Check:** 6 nodes `Ready`; `istioctl` prints `client version: 1.30.7` ("Istio is not present" is expected).
+
+**Port 80 must be free before step 6.** If IIS (the Windows web server) is running, it holds port 80 through http.sys, Docker
+Desktop can't publish the gateway's port 80, and the `istio-ingress` LoadBalancer stays `<pending>`. Check and fix in an
+**admin** PowerShell:
+
+```powershell
+Get-Service W3SVC, WAS -ErrorAction SilentlyContinue | Select-Object Name, Status
+Stop-Service W3SVC, WAS -Force
+Set-Service W3SVC -StartupType Disabled
+Set-Service WAS -StartupType Disabled
+netsh interface ipv4 show excludedportrange protocol=tcp
+```
+
+Port 80 must not be listed in the excluded ranges; if it still is, run `net stop winnat` then `net start winnat`.
 
 ---
 
@@ -144,7 +164,9 @@ kubectl port-forward svc/customer-portal 3000:8080
 **Check:**
 - All 6 apps are `Synced / Healthy`.
 - The 6 pods are `Running 1/1`.
-- At http://localhost:3000 you can log in, see products and images, and place an order.
+- At http://localhost:3000 you can log in, see the 500 products and place an order.
+- Product **pictures show letter placeholders** for now: catalog-api returns `/images/...` URLs, and only the Istio
+  gateway route (step 8) plus the image server (step 9a) can answer them. That's expected.
 
 ---
 
@@ -189,6 +211,16 @@ kubectl get svc -n istio-ingress
 **Check:**
 - `istiod` and `istio-ingress` pods are `Running`.
 - The `istio-ingress` Service is a `LoadBalancer` with ports `80` and `443`. The EXTERNAL-IP is the kind network IP (e.g. `172.18.0.10`), and https://localhost still reaches it.
+- `Test-NetConnection -ComputerName localhost -Port 443` and `-Port 80` are both `True`.
+
+If EXTERNAL-IP stays `<pending>`, port 80 was most likely busy when the Service was created (IIS, see step 0).
+Free port 80, then recreate the Service:
+
+```powershell
+kubectl delete service istio-ingress -n istio-ingress
+helm upgrade istio-ingress istio/gateway -n istio-ingress --version 1.30.7
+kubectl get svc -n istio-ingress
+```
 
 The release name `istio-ingress` gives the label `istio: ingress` and the service account `istio-ingress`, which the Gateway and AuthorizationPolicies expect.
 
@@ -265,6 +297,8 @@ kubectl apply -f k8s/docker-desktop/istio/common/authorization-policies/
 kubectl get peerauthentication,authorizationpolicy
 ```
 
+This folder also creates the `image-server` policy (step 9a): 8 AuthorizationPolicies in total.
+
 | Service | Allowed callers |
 |---|---|
 | customer-portal | Istio ingress gateway |
@@ -299,6 +333,8 @@ kubectl exec deploy/image-server -c image-server -- sh -c "ls /usr/share/nginx/h
 ```
 
 **Check:** PVC `Bound`, pod `2/2 Running`, count `500`, and https://localhost shows product pictures.
+Test in an **InPrivate/Incognito** window: the image server tells browsers to cache images for 7 days, so a normal
+window may still show pictures from an earlier session even when the image server is missing.
 Details and troubleshooting: `k8s/docker-desktop/images/README.md`.
 
 ---
@@ -388,7 +424,7 @@ Policies (templates and constraints) and their steps: `k8s/docker-desktop/gateke
 
 ```powershell
 kubectl get applications -n argocd      # 6 apps Synced / Healthy
-kubectl get pods                        # 6 pods 2/2 Running
+kubectl get pods                        # 7 pods 2/2 Running (6 apps + image-server)
 kubectl get hpa                         # TARGETS show percentages
 ```
 
@@ -454,6 +490,8 @@ Test-NetConnection -ComputerName localhost -Port 443
 | Symptom | Cause | Fix |
 |---|---|---|
 | data-api not ready, log `A network-related ... error` or `Login failed for user 'ecommerce_data_api'` | SQL Server not reachable on 1433, or wrong password in the secret | Step 1 checks; `k8s/docker-desktop/sql-server/README.md` (network test); recreate the secret (step 2) |
+| Step 6: `istio-ingress` EXTERNAL-IP stays `<pending>`, http://localhost fails | IIS (W3SVC) holds port 80 | Step 0 (stop and disable IIS), then recreate the Service (step 6) |
+| Shop shows pictures but the image server isn't installed | Browser cache (images cached for 7 days) | Test in an InPrivate window |
 | After a restart: pods `Unknown` / `Init:1/2`, sidecar log `lookup istiod.istio-system.svc ... i/o timeout` | kind nodes got new IPs; kindnet and kube-proxy kept the old ones | "After a Docker Desktop or laptop restart", fix 1 |
 | After a restart: https://localhost refuses to connect, `istio-ingress` EXTERNAL-IP `<pending>` | Docker Desktop lost the LoadBalancer-to-localhost mapping | "After a Docker Desktop or laptop restart", fix 2 |
 | Shop shows letter placeholders instead of pictures | Images not on the PVC, or catalog-api not synced | Step 9a; `k8s/docker-desktop/images/README.md` |
