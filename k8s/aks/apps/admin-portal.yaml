@@ -66,6 +66,7 @@ spec:
               cpu: 25m
               memory: 32Mi
             limits:
+              cpu: 100m
               memory: 64Mi      # the pod is restarted (OOMKilled) above this; no CPU limit, so no throttling
           livenessProbe:          # restart the container if this fails (process hung)
             httpGet:
